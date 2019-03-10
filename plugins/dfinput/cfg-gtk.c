@@ -391,8 +391,11 @@ static void ReadDKeyEvent(int padnum, int key) {
         return;
 	}
 
+    // Update the joystick state and flush previous axis events
+    // so we don't capture false input
 	SDL_JoystickUpdate();
-    
+    SDL_FlushEvent(SDL_JOYAXISMOTION);
+
     time_t t = time(NULL);
     SDL_Event event;
     while (time(NULL) < t + 10) {
