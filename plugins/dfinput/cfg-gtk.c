@@ -375,10 +375,7 @@ static void OnPreventScrSaverToggled(GtkWidget *widget, gpointer user_data) {
 
 static void ReadDKeyEvent(int padnum, int key) {
 	SDL_Joystick *js;
-	time_t t;
-	//GdkEvent *ge;
 	int i;
-	Sint16 axis, numAxes = 0, InitAxisPos[256], PrevAxisPos[256];
 	unsigned char buttons[32];
 	uint16_t Key;
 
@@ -386,67 +383,46 @@ static void ReadDKeyEvent(int padnum, int key) {
 	int8_t devnum = padnum < 0 ? g.cfg.E.DevNum : g.cfg.PadDef[padnum].DevNum;
 
 	if (devnum >= 0) {
+        SDL_JoystickEventState(SDL_ENABLE);
 		js = SDL_JoystickOpen(devnum);
-		SDL_JoystickEventState(SDL_IGNORE);
-
 		SDL_JoystickUpdate();
-
-		numAxes = SDL_JoystickNumAxes(js);
-		if (numAxes > 256) numAxes = 256;
-
-		for (i = 0; i < numAxes; i++) {
-			InitAxisPos[i] = PrevAxisPos[i] = SDL_JoystickGetAxis(js, i);
-		}
 	} else {
 		js = NULL;
+        return;
 	}
 
-	t = time(NULL);
+	SDL_JoystickUpdate();
+    
+    time_t t = time(NULL);
+    SDL_Event event;
+    while (time(NULL) < t + 10) {
+        uint8_t found_key = 0;
+        while (SDL_PollEvent(&event)) {
+            switch(event.type) {
+                case SDL_JOYAXISMOTION:
+                    if (abs(event.jaxis.value) > 16383) {
+                        keydef->JoyEvType = AXIS;
+                        keydef->J.Axis = (event.jaxis.axis + 1) * (event.jaxis.value > 0 ? 1 : -1);
+                        found_key = 1;
+                    }
+                    break;
+                case SDL_JOYHATMOTION:
+                    if (event.jhat.value != SDL_HAT_CENTERED) {
+                        keydef->JoyEvType = HAT;
+                        keydef->J.Hat = ((event.jhat.hat << 8) | event.jhat.value);
+                        found_key = 1;
+                    }
+                    break;
+                case SDL_JOYBUTTONDOWN:
+                    keydef->JoyEvType = BUTTON;
+                    keydef->J.Button = event.jbutton.button;
+                    found_key = 1;
+                    break;
+                default:
+                    break;
+            }
+        }
 
-	while (time(NULL) < t + 10) {
-		// check joystick events
-		if (js != NULL) {
-			SDL_JoystickUpdate();
-
-			for (i = 0; i < SDL_JoystickNumButtons(js); i++) {
-				if (SDL_JoystickGetButton(js, i)) {
-					keydef->JoyEvType = BUTTON;
-					keydef->J.Button = i;
-					goto end;
-				}
-			}
-
-			for (i = 0; i < numAxes; i++) {
-				axis = SDL_JoystickGetAxis(js, i);
-				if (abs(axis) > 16383 && (abs(axis - InitAxisPos[i]) > 4096 || abs(axis - PrevAxisPos[i]) > 4096) && (abs(axis) < 32768)) {
-					keydef->JoyEvType = AXIS;
-					keydef->J.Axis = (i + 1) * (axis > 0 ? 1 : -1);
-					goto end;
-				}
-				PrevAxisPos[i] = axis;
-			}
-
-			for (i = 0; i < SDL_JoystickNumHats(js); i++) {
-				axis = SDL_JoystickGetHat(js, i);
-				if (axis != SDL_HAT_CENTERED) {
-					keydef->JoyEvType = HAT;
-
-					if (axis & SDL_HAT_UP) {
-						keydef->J.Hat = ((i << 8) | SDL_HAT_UP);
-					} else if (axis & SDL_HAT_DOWN) {
-						keydef->J.Hat = ((i << 8) | SDL_HAT_DOWN);
-					} else if (axis & SDL_HAT_LEFT) {
-						keydef->J.Hat = ((i << 8) | SDL_HAT_LEFT);
-					} else if (axis & SDL_HAT_RIGHT) {
-						keydef->J.Hat = ((i << 8) | SDL_HAT_RIGHT);
-					}
-
-					goto end;
-				}
-			}
-		}
-
-		// check keyboard events
 		XQueryKeymap(g.Disp, buttons);
 		for (i = 0; i < 256; ++i) {
 			if(buttons[i >> 3] & (1 << (i & 7))) {
@@ -454,14 +430,16 @@ static void ReadDKeyEvent(int padnum, int key) {
 				if(Key != XK_Escape) {
 					keydef->Key = Key;
 				}
-				goto end;
+                found_key = 1;
 			}
 		}
 
-		usleep(5000);
-	}
+        if (found_key) {
+            break;
+        }
+        usleep(5000);
+    }
 
-end:
 	if (js != NULL) {
 		SDL_JoystickClose(js);
 	}
