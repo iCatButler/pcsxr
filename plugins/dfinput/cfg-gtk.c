@@ -326,7 +326,7 @@ static void OnDeviceChanged(GtkWidget *widget, gpointer user_data) {
 
 static void OnTypeChanged(GtkWidget *widget, gpointer user_data) {
 	uint n = GPOINTER_TO_UINT(user_data), current = gtk_combo_box_get_active(GTK_COMBO_BOX(widget));
-    char checkbtn[9];
+	char checkbtn[9];
 
 	int padTypeList[] = {
 		PSE_PAD_TYPE_STANDARD,
@@ -336,9 +336,9 @@ static void OnTypeChanged(GtkWidget *widget, gpointer user_data) {
 
 	g.cfg.PadDef[n].Type = padTypeList[current];
 
-    snprintf(checkbtn, sizeof(checkbtn), "checkpv%d", n+1);
-    gtk_widget_set_sensitive(GTK_WIDGET(
-        gtk_builder_get_object(xml, checkbtn)), (g.cfg.PadDef[n].Type == PSE_PAD_TYPE_ANALOGPAD));
+	snprintf(checkbtn, sizeof(checkbtn), "checkpv%d", n+1);
+	gtk_widget_set_sensitive(GTK_WIDGET(
+		gtk_builder_get_object(xml, checkbtn)), (g.cfg.PadDef[n].Type == PSE_PAD_TYPE_ANALOGPAD));
 
 	UpdateKeyList();
 }
@@ -356,11 +356,11 @@ static void OnVisualVibration2Toggled(GtkWidget *widget, gpointer user_data) {
 }
 
 static void OnPhysicalVibration1Toggled(GtkWidget *widget, gpointer user_data) {
-    g.cfg.PadDef[0].PhysicalVibration = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget));
+	g.cfg.PadDef[0].PhysicalVibration = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget));
 }
 
 static void OnPhysicalVibration2Toggled(GtkWidget *widget, gpointer user_data) {
-    g.cfg.PadDef[1].PhysicalVibration = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget));
+	g.cfg.PadDef[1].PhysicalVibration = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget));
 }
 
 static void OnHideCursorToggled(GtkWidget *widget, gpointer user_data) {
@@ -375,10 +375,7 @@ static void OnPreventScrSaverToggled(GtkWidget *widget, gpointer user_data) {
 
 static void ReadDKeyEvent(int padnum, int key) {
 	SDL_Joystick *js;
-	time_t t;
-	//GdkEvent *ge;
 	int i;
-	Sint16 axis, numAxes = 0, InitAxisPos[256], PrevAxisPos[256];
 	unsigned char buttons[32];
 	uint16_t Key;
 
@@ -386,67 +383,49 @@ static void ReadDKeyEvent(int padnum, int key) {
 	int8_t devnum = padnum < 0 ? g.cfg.E.DevNum : g.cfg.PadDef[padnum].DevNum;
 
 	if (devnum >= 0) {
+		SDL_JoystickEventState(SDL_ENABLE);
 		js = SDL_JoystickOpen(devnum);
-		SDL_JoystickEventState(SDL_IGNORE);
-
 		SDL_JoystickUpdate();
-
-		numAxes = SDL_JoystickNumAxes(js);
-		if (numAxes > 256) numAxes = 256;
-
-		for (i = 0; i < numAxes; i++) {
-			InitAxisPos[i] = PrevAxisPos[i] = SDL_JoystickGetAxis(js, i);
-		}
 	} else {
 		js = NULL;
+		return;
 	}
 
-	t = time(NULL);
+	// Update the joystick state and flush previous axis events
+	// so we don't capture false input
+	SDL_JoystickUpdate();
+	SDL_FlushEvent(SDL_JOYAXISMOTION);
 
+	time_t t = time(NULL);
+	SDL_Event event;
 	while (time(NULL) < t + 10) {
-		// check joystick events
-		if (js != NULL) {
-			SDL_JoystickUpdate();
-
-			for (i = 0; i < SDL_JoystickNumButtons(js); i++) {
-				if (SDL_JoystickGetButton(js, i)) {
-					keydef->JoyEvType = BUTTON;
-					keydef->J.Button = i;
-					goto end;
-				}
-			}
-
-			for (i = 0; i < numAxes; i++) {
-				axis = SDL_JoystickGetAxis(js, i);
-				if (abs(axis) > 16383 && (abs(axis - InitAxisPos[i]) > 4096 || abs(axis - PrevAxisPos[i]) > 4096) && (abs(axis) < 32768)) {
-					keydef->JoyEvType = AXIS;
-					keydef->J.Axis = (i + 1) * (axis > 0 ? 1 : -1);
-					goto end;
-				}
-				PrevAxisPos[i] = axis;
-			}
-
-			for (i = 0; i < SDL_JoystickNumHats(js); i++) {
-				axis = SDL_JoystickGetHat(js, i);
-				if (axis != SDL_HAT_CENTERED) {
-					keydef->JoyEvType = HAT;
-
-					if (axis & SDL_HAT_UP) {
-						keydef->J.Hat = ((i << 8) | SDL_HAT_UP);
-					} else if (axis & SDL_HAT_DOWN) {
-						keydef->J.Hat = ((i << 8) | SDL_HAT_DOWN);
-					} else if (axis & SDL_HAT_LEFT) {
-						keydef->J.Hat = ((i << 8) | SDL_HAT_LEFT);
-					} else if (axis & SDL_HAT_RIGHT) {
-						keydef->J.Hat = ((i << 8) | SDL_HAT_RIGHT);
+		uint8_t found_key = 0;
+		while (SDL_PollEvent(&event)) {
+			switch(event.type) {
+				case SDL_JOYAXISMOTION:
+					if (abs(event.jaxis.value) > 16383) {
+						keydef->JoyEvType = AXIS;
+						keydef->J.Axis = (event.jaxis.axis + 1) * (event.jaxis.value > 0 ? 1 : -1);
+						found_key = 1;
 					}
-
-					goto end;
-				}
+					break;
+				case SDL_JOYHATMOTION:
+					if (event.jhat.value != SDL_HAT_CENTERED) {
+						keydef->JoyEvType = HAT;
+						keydef->J.Hat = ((event.jhat.hat << 8) | event.jhat.value);
+						found_key = 1;
+					}
+					break;
+				case SDL_JOYBUTTONDOWN:
+					keydef->JoyEvType = BUTTON;
+					keydef->J.Button = event.jbutton.button;
+					found_key = 1;
+					break;
+				default:
+					break;
 			}
 		}
 
-		// check keyboard events
 		XQueryKeymap(g.Disp, buttons);
 		for (i = 0; i < 256; ++i) {
 			if(buttons[i >> 3] & (1 << (i & 7))) {
@@ -454,14 +433,16 @@ static void ReadDKeyEvent(int padnum, int key) {
 				if(Key != XK_Escape) {
 					keydef->Key = Key;
 				}
-				goto end;
+				found_key = 1;
 			}
 		}
 
+		if (found_key) {
+			break;
+		}
 		usleep(5000);
 	}
 
-end:
 	if (js != NULL) {
 		SDL_JoystickClose(js);
 	}
@@ -651,7 +632,7 @@ long PADconfigure() {
 	GtkTreeSelection *treesel;
 	GtkTreeViewColumn *column;
 	GtkCellRenderer *renderer;
-        
+
 	if (SDL_Init(SDL_INIT_JOYSTICK) == -1) {
 		fprintf(stderr, "Failed to initialize SDL!\n");
 		return -1;
@@ -662,7 +643,7 @@ long PADconfigure() {
 		fprintf(stderr, "XOpenDisplay failed!\n");
 		return -1;
 	}
-        
+
 	LoadPADConfig();
 
 	xml = gtk_builder_new();
@@ -671,12 +652,12 @@ long PADconfigure() {
 		g_warning("We could not load the interface!");
 		return -1;
 	}
-        
+
 	MainWindow = GTK_WIDGET(gtk_builder_get_object(xml, "CfgWnd"));
 	gtk_window_set_title(GTK_WINDOW(MainWindow), _("Gamepad/Keyboard Input Configuration"));
 
 	widget = GTK_WIDGET(gtk_builder_get_object(xml, widgetname_treeview[1])); // pad 1
-        
+
 	// column for key
 	renderer = gtk_cell_renderer_text_new();
 	column = gtk_tree_view_column_new_with_attributes(_("Key"),
@@ -760,14 +741,14 @@ long PADconfigure() {
 	widget = GTK_WIDGET(gtk_builder_get_object(xml, "combotype1"));
 	gtk_combo_box_set_active(GTK_COMBO_BOX(widget),
 		padTypeList[g.cfg.PadDef[0].Type]);
-    OnTypeChanged(widget, GUINT_TO_POINTER(0u));
+	OnTypeChanged(widget, GUINT_TO_POINTER(0u));
 	g_signal_connect_data(G_OBJECT(widget), "changed",
 		G_CALLBACK(OnTypeChanged), GUINT_TO_POINTER(0u), NULL, G_CONNECT_AFTER);
 
 	widget = GTK_WIDGET(gtk_builder_get_object(xml, "combotype2"));
 	gtk_combo_box_set_active(GTK_COMBO_BOX(widget),
 		padTypeList[g.cfg.PadDef[1].Type]);
-    OnTypeChanged(widget, GUINT_TO_POINTER(1u));
+	OnTypeChanged(widget, GUINT_TO_POINTER(1u));
 	g_signal_connect_data(G_OBJECT(widget), "changed",
 		G_CALLBACK(OnTypeChanged), GUINT_TO_POINTER(1u), NULL, G_CONNECT_AFTER);
 
@@ -781,15 +762,15 @@ long PADconfigure() {
 	g_signal_connect_data(G_OBJECT(widget), "toggled",
 		G_CALLBACK(OnVisualVibration2Toggled), NULL, NULL, G_CONNECT_AFTER);
 
-    widget = GTK_WIDGET(gtk_builder_get_object(xml, "checkpv1"));
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widget), g.cfg.PadDef[0].PhysicalVibration);
-    g_signal_connect_data(G_OBJECT(widget), "toggled",
-                          G_CALLBACK(OnPhysicalVibration1Toggled), NULL, NULL, G_CONNECT_AFTER);
+	widget = GTK_WIDGET(gtk_builder_get_object(xml, "checkpv1"));
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widget), g.cfg.PadDef[0].PhysicalVibration);
+	g_signal_connect_data(G_OBJECT(widget), "toggled",
+						  G_CALLBACK(OnPhysicalVibration1Toggled), NULL, NULL, G_CONNECT_AFTER);
 
-    widget = GTK_WIDGET(gtk_builder_get_object(xml, "checkpv2"));
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widget), g.cfg.PadDef[1].PhysicalVibration);
-    g_signal_connect_data(G_OBJECT(widget), "toggled",
-                          G_CALLBACK(OnPhysicalVibration2Toggled), NULL, NULL, G_CONNECT_AFTER);
+	widget = GTK_WIDGET(gtk_builder_get_object(xml, "checkpv2"));
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widget), g.cfg.PadDef[1].PhysicalVibration);
+	g_signal_connect_data(G_OBJECT(widget), "toggled",
+						  G_CALLBACK(OnPhysicalVibration2Toggled), NULL, NULL, G_CONNECT_AFTER);
 
 	widget = GTK_WIDGET(gtk_builder_get_object(xml, widgetname_change[1]));
 	gtk_widget_set_sensitive(widget, FALSE);
@@ -846,13 +827,13 @@ long PADconfigure() {
 	widget = GTK_WIDGET(gtk_builder_get_object(xml, widgetname_combodev[0]));
 	g_signal_connect_data(G_OBJECT(widget), "changed",
 		G_CALLBACK(OnDeviceChanged), GINT_TO_POINTER(-1), NULL, G_CONNECT_AFTER);
-        
+
 	PopulateDevList();
 	UpdateKeyList();
-        
+
 	gtk_widget_show(MainWindow);
 	gtk_main();
-        
+
 	return 0;
 }
 
