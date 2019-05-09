@@ -1,5 +1,4 @@
-PCSX-Reloaded
--------------------------------
+# PCSX-Reloaded
 
 PCSX-Reloaded is a forked version of the dead PCSX emulator, with a nicer
 interface and several improvements to stability and functionality.
