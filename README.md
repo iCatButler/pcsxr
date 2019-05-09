@@ -1,5 +1,6 @@
-PCSX-Reloaded
--------------------------------
+# PCSX-Reloaded
+[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/github/iCatButler/pcsxr?branch=master&svg=true)](https://ci.appveyor.com/project/iCatButler/pcsxr)
+[![Travis Build Status](https://travis-ci.org/iCatButler/pcsxr.svg?branch=master)](https://travis-ci.org/iCatButler/pcsxr)
 
 PCSX-Reloaded is a forked version of the dead PCSX emulator, with a nicer
 interface and several improvements to stability and functionality.
