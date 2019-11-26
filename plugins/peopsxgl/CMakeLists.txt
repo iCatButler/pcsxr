@@ -18,7 +18,7 @@ set(GTK_LIBRARIES ${GTK3_LIBRARY} ${GDK3_LIBRARY} ${GDKPixbuf_LIBRARY} ${Pango_L
 
 find_package(X11 REQUIRED)
 
-set(OpenGL_GL_PREFERENCE GLVND)
+set(OpenGL_GL_PREFERENCE LEGACY)
 find_package(OpenGL REQUIRED)
 if(NOT OPENGL_FOUND)
     message(FATAL_ERROR "GL library not found")
