@@ -134,6 +134,10 @@ Execution flow control commands (3xx):
     Soft (quick) resets.
 399
     Resets.
+3A0 <address>
+    Run to address.
+3A1
+    Step over.
     
 
 Server outputs:
@@ -1115,7 +1119,7 @@ static void ProcessCommands() {
                 sprintf(reply, "500 Malformed 3A0 command '%s'\r\n", arguments);
                 break;
             }
-            sprintf(reply, "4A0 run to addr %08X\r\n", run_to_addr);
+            sprintf(reply, "3A0 run to addr %08X\r\n", run_to_addr);
             break;
         case 0x3A1:
             // step over (jal)
@@ -1125,14 +1129,13 @@ static void ProcessCommands() {
                     step_over = 1;
                     step_over_addr = psxRegs.pc + 8;
                     paused = 0;
-                    
-                    sprintf(reply, "4A1 step over addr %08X\r\n", psxRegs.pc);
                 }
                 else {
                     trace = 1;
                     paused = 0;
                 }
             }
+	    sprintf(reply, "3A1 step over addr %08X\r\n", psxRegs.pc);
             break;
         default:
             sprintf(reply, "500 Unknown command '%s'\r\n", cmd);
