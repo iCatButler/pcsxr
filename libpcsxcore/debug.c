@@ -1119,7 +1119,7 @@ static void ProcessCommands() {
                 sprintf(reply, "500 Malformed 3A0 command '%s'\r\n", arguments);
                 break;
             }
-            sprintf(reply, "3A0 run to addr %08X\r\n", run_to_addr);
+            sprintf(reply, "4A0 run to addr %08X\r\n", run_to_addr);
             break;
         case 0x3A1:
             // step over (jal)
@@ -1135,7 +1135,7 @@ static void ProcessCommands() {
                     paused = 0;
                 }
             }
-	    sprintf(reply, "3A1 step over addr %08X\r\n", psxRegs.pc);
+	    sprintf(reply, "4A1 step over addr %08X\r\n", psxRegs.pc);
             break;
         default:
             sprintf(reply, "500 Unknown command '%s'\r\n", cmd);
