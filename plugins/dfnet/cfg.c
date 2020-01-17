@@ -13,6 +13,22 @@
 
 #define CFG_FILENAME "dfnet.cfg"
 
+// definitions of globals declared in "dfnet.h"
+Config conf;
+int sock;
+char *PadSendData;
+char *PadRecvData;
+char PadSendSize;
+char PadRecvSize;
+char PadSize[2];
+int PadCount;
+int PadCountMax;
+int PadInit;
+int Ping;
+volatile int WaitCancel;
+fd_set rset;
+fd_set wset;
+
 void SaveConf() {
 	FILE *f;
 
