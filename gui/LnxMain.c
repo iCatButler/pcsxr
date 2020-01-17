@@ -48,6 +48,8 @@ enum {
 };
 
 gboolean UseGui = TRUE;
+char cfgfile[MAXPATHLEN];	/* ADB Comment this out - make a local var, or at least use gchar funcs */
+char cfgfile_basename[MAXPATHLEN];	/* ADB Comment this out - make a local var, or at least use gchar funcs */
 
 static void CreateMemcard(char *filename, char *conf_mcd) {
 	gchar *mcd;
