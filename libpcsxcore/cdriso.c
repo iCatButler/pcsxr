@@ -534,10 +534,17 @@ static int parsetoc(const char *isofile) {
 			}
 		}
 	}
-	if (numtracks > 0)
-		cdHandle = fopen(filename, "rb");
 
 	fclose(fi);
+
+	if (numtracks > 0) {
+		// Test if the data file pointed to in the toc/cue file can be opened.
+		fi = fopen(filename, "rb");
+		if (fi != NULL) {
+			fclose(cdHandle);
+			cdHandle = fi;
+		}
+	}
 
 	return 0;
 }
