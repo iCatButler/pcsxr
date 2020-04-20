@@ -21,6 +21,7 @@
 
 #include "psxcommon.h"
 #include "socket.h"
+#include "config.h"
 
 #ifndef _WIN32
 #include <sys/socket.h>
@@ -31,17 +32,13 @@
 #include <fcntl.h>
 #endif
 
-static int server_socket = 0;
-static int client_socket = 0;
-
 static char tbuf[513];
 static int ptr = 0;
 
-#define PORT_NUMBER 12345
-
-int StartServer() {
+int StartServer(unsigned short port) {
     struct in_addr localhostaddr;
     struct sockaddr_in localsocketaddr;
+    int ret;
 
 #ifdef _WIN32
     WSADATA wsaData;
@@ -50,17 +47,17 @@ int StartServer() {
         return -1;
 #endif
 
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    ret = socket(AF_INET, SOCK_STREAM, 0);
 
 #ifdef _WIN32
-    if (server_socket == INVALID_SOCKET)
+    if (ret == INVALID_SOCKET)
         return -1;
 #else
-    if (server_socket == -1)
-        return -1;
+    if (ret == -1)
+        return ret;
 #endif
 
-    SetsNonblock();
+    SetsNonblock(ret);
 
     memset((void *)&localhostaddr, 0, sizeof(localhostaddr));
     memset(&localsocketaddr, 0, sizeof(struct sockaddr_in));
@@ -72,34 +69,34 @@ int StartServer() {
 #endif
     localsocketaddr.sin_family = AF_INET;
     localsocketaddr.sin_addr = localhostaddr;
-    localsocketaddr.sin_port = htons(PORT_NUMBER);
+    localsocketaddr.sin_port = htons(port);
 
-    if (bind(server_socket, (struct sockaddr *) &localsocketaddr, sizeof(localsocketaddr)) < 0)
+    if (bind(ret, (struct sockaddr *) &localsocketaddr, sizeof(localsocketaddr)) < 0)
         return -1;
 
-    if (listen(server_socket, 1) != 0)
+    if (listen(ret, 1) != 0)
         return -1;
 
     return 0;
 }
 
-void StopServer() {
+void StopServer(int s_socket) {
 #ifdef _WIN32
-    shutdown(server_socket, SD_BOTH);
-    closesocket(server_socket);
+    shutdown(s_socket, SD_BOTH);
+    closesocket(s_socket);
     WSACleanup();
 #else
-    shutdown(server_socket, SHUT_RDWR);
-    close(server_socket);
+    shutdown(s_socket, SHUT_RDWR);
+    close(s_socket);
 #endif
 }
 
-void GetClient() {
+void GetClient(int s_socket, int *client_socket) {
     int new_socket;
     char hello[256];
 
-    new_socket = accept(server_socket, 0, 0);
-    
+    new_socket = accept(s_socket, 0, 0);
+
 #ifdef _WIN32
     if (new_socket == INVALID_SOCKET)
         return;
@@ -107,51 +104,52 @@ void GetClient() {
     if (new_socket == -1)
         return;
 #endif
-    if (client_socket)
-        CloseClient();
-    client_socket = new_socket;
+    if (*client_socket)
+        CloseClient(*client_socket);
+    *client_socket = new_socket;
 
 #ifndef _WIN32
     {
         int flags;
-        flags = fcntl(client_socket, F_GETFL, 0);
-        fcntl(client_socket, F_SETFL, flags | O_NONBLOCK);
+        flags = fcntl(*client_socket, F_GETFL, 0);
+        fcntl(*client_socket, F_SETFL, flags | O_NONBLOCK);
     }
 #endif
 
+    /* TODO: Move to debug.c */
     sprintf(hello, "000 PCSXR Version %s - Debug console\r\n", PACKAGE_VERSION);
-    WriteSocket(hello, strlen(hello));
+    WriteSocket(client_socket, hello, strlen(hello));
     ptr = 0;
 }
 
-void CloseClient() {
-    if (client_socket) {
+void CloseClient(int *client_socket) {
+    if (*client_socket) {
 #ifdef _WIN32
         shutdown(client_socket, SD_BOTH);
         closesocket(client_socket);
 #else
-        shutdown(client_socket, SHUT_RDWR);
-        close(client_socket);
+        shutdown(*client_socket, SHUT_RDWR);
+        close(*client_socket);
 #endif
-        client_socket = 0;
+        *client_socket = 0;
     }
 }
 
-int HasClient() {
+int HasClient(int client_socket) {
     return client_socket ? 1 : 0;
 }
 
-int ReadSocket(char * buffer, int len) {
+int ReadSocket(int *client_socket, char * buffer, int len) {
     int r;
     char * endl;
 
-    if (!client_socket)
+    if (!*client_socket)
         return -1;
 
-    r = recv(client_socket, tbuf + ptr, 512 - ptr, 0);
+    r = recv(*client_socket, tbuf + ptr, 512 - ptr, 0);
 
     if (r == 0) {
-        client_socket = 0;
+        *client_socket = 0;
         if (!ptr)
             return 0;
     }
@@ -189,11 +187,11 @@ int ReadSocket(char * buffer, int len) {
     return r;
 }
 
-int RawReadSocket(char * buffer, int len) {
+int RawReadSocket(int *client_socket, char * buffer, int len) {
     int r = 0;
     int mlen = len < ptr ? len : ptr;
 
-    if (!client_socket)
+    if (!*client_socket)
         return -1;
 
     if (ptr) {
@@ -203,10 +201,10 @@ int RawReadSocket(char * buffer, int len) {
     }
 
     if (len - mlen)
-        r = recv(client_socket, buffer + mlen, len - mlen, 0);
+        r = recv(*client_socket, buffer + mlen, len - mlen, 0);
 
     if (r == 0) {
-        client_socket = 0;
+        *client_socket = 0;
         if (!ptr)
             return 0;
     }
@@ -226,29 +224,29 @@ int RawReadSocket(char * buffer, int len) {
     return r;
 }
 
-void WriteSocket(char * buffer, int len) {
-    if (!client_socket)
+void WriteSocket(int *client_socket, char * buffer, int len) {
+    if (!*client_socket)
         return;
 
-    send(client_socket, buffer, len, 0);
+    send(*client_socket, buffer, len, 0);
 }
 
-void SetsBlock() {
+void SetsBlock(int s_socket) {
 #ifdef _WIN32
     u_long b = 0;
-    ioctlsocket(server_socket, FIONBIO, &b);
+    ioctlsocket(s_socket, FIONBIO, &b);
 #else
-    int flags = fcntl(server_socket, F_GETFL, 0);
-    fcntl(server_socket, F_SETFL, flags & ~O_NONBLOCK);
+    int flags = fcntl(s_socket, F_GETFL, 0);
+    fcntl(s_socket, F_SETFL, flags & ~O_NONBLOCK);
 #endif
 }
 
-void SetsNonblock() {
+void SetsNonblock(int s_socket) {
 #ifdef _WIN32
     u_long b = 1;
-    ioctlsocket(server_socket, FIONBIO, &b);
+    ioctlsocket(s_socket, FIONBIO, &b);
 #else
-    int flags = fcntl(server_socket, F_GETFL, 0);
-    fcntl(server_socket, F_SETFL, flags | O_NONBLOCK);
+    int flags = fcntl(s_socket, F_GETFL, 0);
+    fcntl(s_socket, F_SETFL, flags | O_NONBLOCK);
 #endif
 }
