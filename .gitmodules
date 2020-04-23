@@ -1,0 +1,3 @@
+[submodule "dynstr/dynstr"]
+	path = dynstr/dynstr
+	url = https://github.com/XaviDCR92/dynstr
