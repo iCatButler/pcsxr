@@ -22,17 +22,27 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
+
+enum read_socket_err
+{
+    READ_SOCKET_OK,
+    READ_SOCKET_ERR_INVALID_ARG,
+    READ_SOCKET_ERR_RECV,
+    READ_SOCKET_SHUTDOWN
+};
+
 int StartServer(unsigned short port);
 void StopServer(int s_socket);
 
-void GetClient(int s_socket, int *client_socket);
-void CloseClient(int *client_socket);
+int GetClient(int s_socket);
+void CloseClient(int client_socket);
 
 int HasClient(int client_socket);
 
-int ReadSocket(int *client_socket, char * buffer, int len);
-int RawReadSocket(int *client_socket, char * buffer, int len);
-void WriteSocket(int *client_socket, char * buffer, int len);
+enum read_socket_err ReadSocket(int client_socket, char *buffer, size_t *len);
+int RawReadSocket(int client_socket, char *buffer, size_t len);
+void WriteSocket(int client_socket, const char *buffer, size_t len);
 
 void SetsBlock(int s_socket);
 void SetsNonblock(int s_socket);

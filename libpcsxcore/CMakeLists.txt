@@ -6,6 +6,8 @@ set_property(CACHE DYNAREC PROPERTY STRINGS auto x86_64 x86 ppc no)
 option(ENABLE_CCDDA "Enables compressed CDDA support." OFF)
 option(USE_LIBARCHIVE "Enables compressed data-tracks support." OFF)
 
+include_directories(../dynstr/dynstr/include)
+
 if (ENABLE_CCDDA)
   find_package(FFMPEG REQUIRED)
   include_directories(${FFMPEG_INCLUDE_DIRS})
@@ -114,4 +116,4 @@ endif()
 set(SRCS ${SRCS} ${DYNAREC_SRC})
 
 add_library(pcsxcore STATIC ${SRCS})
-target_link_libraries(pcsxcore ${FFMPEG_LIBRARIES} ${LibArchive_LIBRARIES} ${LIBS})
+target_link_libraries(pcsxcore dynstr ${FFMPEG_LIBRARIES} ${LibArchive_LIBRARIES} ${LIBS})

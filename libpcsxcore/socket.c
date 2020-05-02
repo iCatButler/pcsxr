@@ -32,9 +32,6 @@
 #include <fcntl.h>
 #endif
 
-static char tbuf[513];
-static int ptr = 0;
-
 int StartServer(unsigned short port) {
     struct in_addr localhostaddr;
     struct sockaddr_in localsocketaddr;
@@ -77,7 +74,7 @@ int StartServer(unsigned short port) {
     if (listen(ret, 1) != 0)
         return -1;
 
-    return 0;
+    return ret;
 }
 
 void StopServer(int s_socket) {
@@ -91,68 +88,102 @@ void StopServer(int s_socket) {
 #endif
 }
 
-void GetClient(int s_socket, int *client_socket) {
-    int new_socket;
-    char hello[256];
-
-    new_socket = accept(s_socket, 0, 0);
+int GetClient(int s_socket) {
+    int new_socket = accept(s_socket, NULL, NULL);
 
 #ifdef _WIN32
     if (new_socket == INVALID_SOCKET)
-        return;
+        return -1;
 #else
     if (new_socket == -1)
-        return;
+        return -1;
 #endif
-    if (*client_socket)
-        CloseClient(*client_socket);
-    *client_socket = new_socket;
 
 #ifndef _WIN32
     {
         int flags;
-        flags = fcntl(*client_socket, F_GETFL, 0);
-        fcntl(*client_socket, F_SETFL, flags | O_NONBLOCK);
+        flags = fcntl(new_socket, F_GETFL, 0);
+        fcntl(new_socket, F_SETFL, flags | O_NONBLOCK);
+        return new_socket;
     }
 #endif
-
-    /* TODO: Move to debug.c */
-    sprintf(hello, "000 PCSXR Version %s - Debug console\r\n", PACKAGE_VERSION);
-    WriteSocket(client_socket, hello, strlen(hello));
-    ptr = 0;
 }
 
-void CloseClient(int *client_socket) {
-    if (*client_socket) {
+void CloseClient(int client_socket) {
+    if (client_socket) {
 #ifdef _WIN32
         shutdown(client_socket, SD_BOTH);
         closesocket(client_socket);
 #else
-        shutdown(*client_socket, SHUT_RDWR);
-        close(*client_socket);
+        shutdown(client_socket, SHUT_RDWR);
+        close(client_socket);
 #endif
-        *client_socket = 0;
     }
 }
 
 int HasClient(int client_socket) {
-    return client_socket ? 1 : 0;
+    return client_socket > 0;
 }
 
-int ReadSocket(int *client_socket, char * buffer, int len) {
-    int r;
+#ifdef _WIN32
+
+static enum read_socket_err ReadSocketOS(SOCKET client_socket, char *buf, size_t *const len)
+{
+    const int res = recv(client_socket, buf, len, 0);
+
+    switch (res)
+    {
+        case SOCKET_ERROR:
+            return READ_SOCKET_ERR_RECV;
+
+        case 0:
+            return READ_SOCKET_SHUTDOWN;
+
+        default:
+            *len = res;
+
+            break;
+    }
+
+    return READ_SOCKET_OK;
+}
+
+#elif defined(_POSIX_VERSION)
+
+static enum read_socket_err ReadSocketOS(int client_socket, char *buf, size_t *const len)
+{
+    const ssize_t res = recv(client_socket, buf, *len, 0);
+
+    switch (res)
+    {
+        case -1:
+            fprintf(stderr, "READ_SOCKET_ERR_RECV, recv(%d, %p, %zu, %d)\n", client_socket, buf, *len, 0);
+            return READ_SOCKET_ERR_RECV;
+
+        case 0:
+            fprintf(stderr, "READ_SOCKET_SHUTDOWN\n");
+            return READ_SOCKET_SHUTDOWN;
+
+        default:
+            printf("received %zu/%zu bytes\n", res, *len);
+            *len = res;
+            break;
+    }
+
+    return READ_SOCKET_OK;
+}
+
+#endif /* _WIN32 */
+
+enum read_socket_err ReadSocket(int client_socket, char *buf, size_t *const len) {
     char * endl;
 
-    if (!*client_socket)
-        return -1;
+    if (!client_socket || !buf || !len || !*len)
+        return READ_SOCKET_ERR_INVALID_ARG;
 
-    r = recv(*client_socket, tbuf + ptr, 512 - ptr, 0);
+    return ReadSocketOS(client_socket, buf, len);
 
-    if (r == 0) {
-        *client_socket = 0;
-        if (!ptr)
-            return 0;
-    }
+#if 0
 #ifdef _WIN32
     if (r == SOCKET_ERROR)
 #else
@@ -183,15 +214,15 @@ int ReadSocket(int *client_socket, char * buffer, int len) {
     }
 
     buffer[r] = 0;
-
-    return r;
+#endif
 }
 
-int RawReadSocket(int *client_socket, char * buffer, int len) {
+int RawReadSocket(int client_socket, char *buffer, size_t len) {
+#if 0
     int r = 0;
     int mlen = len < ptr ? len : ptr;
 
-    if (!*client_socket)
+    if (!client_socket)
         return -1;
 
     if (ptr) {
@@ -201,10 +232,9 @@ int RawReadSocket(int *client_socket, char * buffer, int len) {
     }
 
     if (len - mlen)
-        r = recv(*client_socket, buffer + mlen, len - mlen, 0);
+        r = recv(client_socket, buffer + mlen, len - mlen, 0);
 
     if (r == 0) {
-        *client_socket = 0;
         if (!ptr)
             return 0;
     }
@@ -222,13 +252,14 @@ int RawReadSocket(int *client_socket, char * buffer, int len) {
     r += mlen;
 
     return r;
+#endif
 }
 
-void WriteSocket(int *client_socket, char * buffer, int len) {
-    if (!*client_socket)
+void WriteSocket(int client_socket, const char *buffer, size_t len) {
+    if (!client_socket)
         return;
 
-    send(*client_socket, buffer, len, 0);
+    send(client_socket, buffer, len, 0);
 }
 
 void SetsBlock(int s_socket) {

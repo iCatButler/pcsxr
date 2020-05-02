@@ -19,6 +19,8 @@
 #include "r3000a.h"
 #include "debug.h"
 #include "socket.h"
+#include <dynstr.h>
+#include <stddef.h>
 
 /*
 PCSXR Debug console protocol description, version 1.0
@@ -134,7 +136,7 @@ Execution flow control commands (3xx):
     Soft (quick) resets.
 399
     Resets.
-    
+
 
 Server outputs:
 ~~~~~~~~~~~~~~
@@ -236,6 +238,9 @@ static int step_over = 0;
 static u32 step_over_addr = 0;
 static int mapping_e = 0, mapping_r8 = 0, mapping_r16 = 0, mapping_r32 = 0, mapping_w8 = 0, mapping_w16 = 0, mapping_w32 = 0;
 static int breakmp_e = 0, breakmp_r8 = 0, breakmp_r16 = 0, breakmp_r32 = 0, breakmp_w8 = 0, breakmp_w16 = 0, breakmp_w32 = 0;
+static int server_socket, client_socket;
+static char tbuf[513];
+static size_t ptr;
 
 static void ProcessCommands();
 
@@ -317,6 +322,11 @@ breakpoint_t *find_breakpoint(int number) {
 }
 
 void StartDebugger() {
+    enum
+    {
+        PORT_NUMBER = 12345
+    };
+
     if (debugger_active)
         return;
 
@@ -326,7 +336,9 @@ void StartDebugger() {
         return;
     }
 
-    if (StartServer() == -1) {
+    server_socket = StartServer(PORT_NUMBER);
+
+    if (server_socket == -1) {
         SysPrintf("%s", _("Unable to start debug server.\n"));
         return;
     }
@@ -337,7 +349,7 @@ void StartDebugger() {
 
 void StopDebugger() {
     if (debugger_active) {
-        StopServer();
+        StopServer(server_socket);
         SysPrintf("%s", _("Debugger stopped.\n"));
     }
 
@@ -361,6 +373,14 @@ void ResumeDebugger() {
     paused = 0;
 }
 
+static void DebugHello(void)
+{
+    static const char hello[] = "000 PCSXR Version " PACKAGE_VERSION " - Debug console\r\n";
+
+    WriteSocket(client_socket, hello, sizeof hello);
+    ptr = 0;
+}
+
 void DebugVSync() {
     if (!debugger_active || resetting)
         return;
@@ -375,7 +395,7 @@ void DebugVSync() {
         return;
     }
 
-    GetClient();
+    client_socket = GetClient(server_socket);
     ProcessCommands();
 }
 
@@ -398,33 +418,42 @@ void ProcessDebug() {
     }
     if (!paused) {
 		if(trace && printpc) {
-			char reply[256];
-			sprintf(reply, "219 %s\r\n", disR3000AF(psxMemRead32(psxRegs.pc), psxRegs.pc));
-			WriteSocket(reply, strlen(reply));
+            struct dynstr reply;
+
+            dynstr_init(&reply);
+			dynstr_append(&reply, "219 %s\r\n", disR3000AF(psxMemRead32(psxRegs.pc), psxRegs.pc));
+			WriteSocket(client_socket, reply.str, reply.len);
+            dynstr_free(&reply);
 		}
-		
+
         if(step_over) {
             if(psxRegs.pc == step_over_addr) {
-                char reply[256];
+                struct dynstr reply;
+
+                dynstr_init(&reply);
                 step_over = 0;
                 step_over_addr = 0;
-                sprintf(reply, "050 @%08X\r\n", psxRegs.pc);
-                WriteSocket(reply, strlen(reply));
+                dynstr_append(&reply, "050 @%08X\r\n", psxRegs.pc);
+                WriteSocket(client_socket, reply.str, reply.len);
+                dynstr_free(&reply);
                 paused = 1;
             }
         }
-        
+
         if(run_to) {
             if(psxRegs.pc == run_to_addr) {
-                char reply[256];
+                struct dynstr reply;
+
                 run_to = 0;
                 run_to_addr = 0;
-                sprintf(reply, "040 @%08X\r\n", psxRegs.pc);
-                WriteSocket(reply, strlen(reply));
+                dynstr_init(&reply);
+                dynstr_append(&reply, "040 @%08X\r\n", psxRegs.pc);
+                WriteSocket(client_socket, reply.str, reply.len);
+                dynstr_free(&reply);
                 paused = 1;
             }
         }
-		
+
         DebugCheckBP(psxRegs.pc, BE);
     }
     if (mapping_e) {
@@ -437,7 +466,7 @@ void ProcessDebug() {
         }
     }
     while (paused) {
-        GetClient();
+        client_socket = GetClient(server_socket);
         ProcessCommands();
         GPU_updateLace();
         SysUpdate();
@@ -446,14 +475,32 @@ void ProcessDebug() {
 
 static void ProcessCommands() {
     int code, i, dumping;
-    FILE *sfile;
-    char cmd[257], *arguments, *p, reply[10240], *save, *dump = NULL;
+    char cmd[348], *arguments, *p, *save, *dump = NULL;
     u32 reg, value, size = 0, address;
     breakpoint_t *bp;
+    size_t len = sizeof cmd;
+    struct dynstr reply;
 
-    if (!HasClient())
-        return;
-    if (ReadSocket(cmd, 256) > 0) {
+    if (HasClient(client_socket))
+    {
+        const enum read_socket_err err = ReadSocket(client_socket, cmd, &len);
+
+        switch (err)
+        {
+            case READ_SOCKET_OK:
+                break;
+
+            case READ_SOCKET_ERR_INVALID_ARG:
+                /* Fall through. */
+            case READ_SOCKET_ERR_RECV:
+                /* Fall through. */
+            case READ_SOCKET_SHUTDOWN:
+                /* Fall through. */
+            default:
+                perror("recv() error");
+                return;
+        }
+
         arguments = NULL;
         if (strlen(cmd) <= 2) {
             code = 0;
@@ -475,129 +522,126 @@ static void ProcessCommands() {
 
         dumping = 0;
         save = NULL;
+        dynstr_init(&reply);
 
         switch (code) {
         case 0x100:
-            sprintf(reply, "200 %s\r\n", arguments == NULL ? "OK" : arguments);
+            dynstr_append(&reply, "200 %s\r\n", arguments == NULL ? "OK" : arguments);
             break;
         case 0x101:
-            sprintf(reply, "201 %s\r\n", PACKAGE_VERSION);
+            dynstr_append(&reply, "201 %s\r\n", PACKAGE_VERSION);
             break;
         case 0x102:
-            sprintf(reply, "202 1.0\r\n");
+            dynstr_append(&reply, "202 1.0\r\n");
             break;
         case 0x103:
-            sprintf(reply, "203 %i\r\n", paused ? 1 : trace ? 2 : 0);
+            dynstr_append(&reply, "203 %i\r\n", paused ? 1 : trace ? 2 : 0);
             break;
         case 0x110:
-            sprintf(reply, "210 PC=%08X\r\n", psxRegs.pc);
+            dynstr_append(&reply, "210 PC=%08X\r\n", psxRegs.pc);
             break;
         case 0x111:
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "511 Malformed 111 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "511 Malformed 111 command '%s'\r\n", cmd);
                     break;
                 }
             }
             if (!arguments) {
-                reply[0] = 0;
                 for (i = 0; i < 32; i++) {
-                    sprintf(reply, "%s211 %02X(%2.2s)=%08X\r\n", reply, i, disRNameGPR[i], psxRegs.GPR.r[i]);
+                    dynstr_append(&reply, "211 %02X(%2.2s)=%08X\r\n", reply, i, disRNameGPR[i], psxRegs.GPR.r[i]);
                 }
             } else {
                 if ((code >= 0) && (code < 32)) {
-                    sprintf(reply, "211 %02X(%2.2s)=%08X\r\n", code, disRNameGPR[code], psxRegs.GPR.r[code]);
+                    dynstr_append(&reply, "211 %02X(%2.2s)=%08X\r\n", code, disRNameGPR[code], psxRegs.GPR.r[code]);
                 } else {
-                    sprintf(reply, "511 Invalid GPR register: %X\r\n", code);
+                    dynstr_append(&reply, "511 Invalid GPR register: %X\r\n", code);
                 }
             }
             break;
         case 0x112:
-            sprintf(reply, "212 LO=%08X HI=%08X\r\n", psxRegs.GPR.n.lo, psxRegs.GPR.n.hi);
+            dynstr_append(&reply, "212 LO=%08X HI=%08X\r\n", psxRegs.GPR.n.lo, psxRegs.GPR.n.hi);
             break;
         case 0x113:
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "511 Malformed 113 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "511 Malformed 113 command '%s'\r\n", cmd);
                     break;
                 }
             }
             if (!arguments) {
-                reply[0] = 0;
                 for (i = 0; i < 32; i++) {
-                    sprintf(reply, "%s213 %02X(%8.8s)=%08X\r\n", reply, i, disRNameCP0[i], psxRegs.CP0.r[i]);
+                    dynstr_append(&reply, "213 %02X(%8.8s)=%08X\r\n", i, disRNameCP0[i], psxRegs.CP0.r[i]);
                 }
             } else {
                 if ((code >= 0) && (code < 32)) {
-                    sprintf(reply, "213 %02X(%8.8s)=%08X\r\n", code, disRNameCP0[code], psxRegs.CP0.r[code]);
+                    dynstr_append(&reply, "213 %02X(%8.8s)=%08X\r\n", code, disRNameCP0[code], psxRegs.CP0.r[code]);
                 } else {
-                    sprintf(reply, "511 Invalid COP0 register: %X\r\n", code);
+                    dynstr_append(&reply, "511 Invalid COP0 register: %X\r\n", code);
                 }
             }
             break;
         case 0x114:
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "511 Malformed 114 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "511 Malformed 114 command '%s'\r\n", cmd);
                     break;
                 }
             }
             if (!arguments) {
-                reply[0] = 0;
                 for (i = 0; i < 32; i++) {
-                    sprintf(reply, "%s214 %02X(%6.6s)=%08X\r\n", reply, i, disRNameCP2C[i], psxRegs.CP2C.r[i]);
+                    dynstr_append(&reply, "214 %02X(%6.6s)=%08X\r\n", i, disRNameCP2C[i], psxRegs.CP2C.r[i]);
                 }
             } else {
                 if ((code >= 0) && (code < 32)) {
-                    sprintf(reply, "214 %02X(%6.6s)=%08X\r\n", code, disRNameCP2C[code], psxRegs.CP2C.r[code]);
+                    dynstr_append(&reply, "214 %02X(%6.6s)=%08X\r\n", code, disRNameCP2C[code], psxRegs.CP2C.r[code]);
                 } else {
-                    sprintf(reply, "511 Invalid COP2C register: %X\r\n", code);
+                    dynstr_append(&reply, "511 Invalid COP2C register: %X\r\n", code);
                 }
             }
             break;
         case 0x115:
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "511 Malformed 111 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "511 Malformed 111 command '%s'\r\n", cmd);
                     break;
                 }
             }
             if (!arguments) {
-                reply[0] = 0;
                 for (i = 0; i < 32; i++) {
-                    sprintf(reply, "%s215 %02X(%4.4s)=%08X\r\n", reply, i, disRNameCP2D[i], psxRegs.CP2D.r[i]);
+                    dynstr_append(&reply, "215 %02X(%4.4s)=%08X\r\n", i, disRNameCP2D[i], psxRegs.CP2D.r[i]);
                 }
             } else {
                 if ((code >= 0) && (code < 32)) {
-                    sprintf(reply, "215 %02X(%4.4s)=%08X\r\n", code, disRNameCP2D[code], psxRegs.CP2D.r[code]);
+                    dynstr_append(&reply, "215 %02X(%4.4s)=%08X\r\n", code, disRNameCP2D[code], psxRegs.CP2D.r[code]);
                 } else {
-                    sprintf(reply, "511 Invalid COP2D register: %X\r\n", code);
+                    dynstr_append(&reply, "511 Invalid COP2D register: %X\r\n", code);
                 }
             }
             break;
         case 0x119:
             if (arguments) {
                 if (sscanf(arguments, "%08X", &code) != 1) {
-                    sprintf(reply, "511 Malformed 119 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "511 Malformed 119 command '%s'\r\n", cmd);
                     break;
                 }
             }
             if (!arguments)
                 code = psxRegs.pc;
 
-            sprintf(reply, "219 %s\r\n", disR3000AF(psxMemRead32(code), code));
+            dynstr_append(&reply, "219 %s\r\n", disR3000AF(psxMemRead32(code), code));
             break;
         case 0x121:
             if (!arguments || sscanf(arguments, "%02X=%08X", &reg, &value) != 2) {
-                sprintf(reply, "500 Malformed 121 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 121 command '%s'\r\n", arguments);
                 break;
             }
 
             if (reg < 32) {
                 psxRegs.GPR.r[reg] = value;
-                sprintf(reply, "221 %02X=%08X\r\n", reg, value);
+                dynstr_append(&reply, "221 %02X=%08X\r\n", reg, value);
             } else {
-                sprintf(reply, "512 Invalid GPR register: %02X\r\n", reg);
+                dynstr_append(&reply, "512 Invalid GPR register: %02X\r\n", reg);
             }
             break;
         case 0x122:
@@ -607,88 +651,88 @@ static void ProcessCommands() {
                 reg = 32;
             } else {
                 arguments[2] = 0;
-                sprintf(reply, "512 Invalid LO/HI register: '%s'\r\n", arguments);
+                dynstr_append(&reply, "512 Invalid LO/HI register: '%s'\r\n", arguments);
                 break;
             }
 
             if (sscanf(arguments + 3, "%08X", &value) != 1) {
-                sprintf(reply, "500 Malformed 122 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 122 command '%s'\r\n", arguments);
             } else {
                 psxRegs.GPR.r[reg] = value;
-                sprintf(reply, "222 LO=%08X HI=%08X\r\n", psxRegs.GPR.n.lo, psxRegs.GPR.n.hi);
+                dynstr_append(&reply, "222 LO=%08X HI=%08X\r\n", psxRegs.GPR.n.lo, psxRegs.GPR.n.hi);
             }
             break;
         case 0x123:
             if (!arguments || sscanf(arguments, "%02X=%08X", &reg, &value) != 2) {
-                sprintf(reply, "500 Malformed 123 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 123 command '%s'\r\n", arguments);
                 break;
             }
 
             if (reg < 32) {
                 psxRegs.CP0.r[reg] = value;
-                sprintf(reply, "223 %02X=%08X\r\n", reg, value);
+                dynstr_append(&reply, "223 %02X=%08X\r\n", reg, value);
             } else {
-                sprintf(reply, "512 Invalid COP0 register: %02X\r\n", reg);
+                dynstr_append(&reply, "512 Invalid COP0 register: %02X\r\n", reg);
             }
             break;
         case 0x124:
             if (!arguments || sscanf(arguments, "%02X=%08X", &reg, &value) != 2) {
-                sprintf(reply, "500 Malformed 124 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 124 command '%s'\r\n", arguments);
                 break;
             }
 
             if (reg < 32) {
                 psxRegs.CP2C.r[reg] = value;
-                sprintf(reply, "224 %02X=%08X\r\n", reg, value);
+                dynstr_append(&reply, "224 %02X=%08X\r\n", reg, value);
             } else {
-                sprintf(reply, "512 Invalid COP2C register: %02X\r\n", reg);
+                dynstr_append(&reply, "512 Invalid COP2C register: %02X\r\n", reg);
             }
             break;
         case 0x125:
             if (!arguments || sscanf(arguments, "%02X=%08X", &reg, &value) != 2) {
-                sprintf(reply, "500 Malformed 121 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 121 command '%s'\r\n", arguments);
                 break;
             }
 
             if (reg < 32) {
                 psxRegs.CP2D.r[reg] = value;
-                sprintf(reply, "225 %02X=%08X\r\n", reg, value);
+                dynstr_append(&reply, "225 %02X=%08X\r\n", reg, value);
             } else {
-                sprintf(reply, "512 Invalid COP2D register: %02X\r\n", reg);
+                dynstr_append(&reply, "512 Invalid COP2D register: %02X\r\n", reg);
             }
             break;
         case 0x130:
             if (!arguments || sscanf(arguments, "%08X@%08X", &size, &address) != 2) {
-                sprintf(reply, "500 Malformed 130 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 130 command '%s'\r\n", arguments);
                 break;
             }
 
             if ((address >= 0x80000000) && ((address + size) <= 0x80200000)) {
-                sprintf(reply, "230 %08X@%08X\r\n", size, address);
+                dynstr_append(&reply, "230 %08X@%08X\r\n", size, address);
                 dump = (char *) PSXM(address);
                 dumping = 1;
             } else {
-                sprintf(reply, "513 Invalid address or range: '%s'\r\n", arguments);
+                dynstr_append(&reply, "513 Invalid address or range: '%s'\r\n", arguments);
             }
             break;
         case 0x140:
             if (!arguments || sscanf(arguments, "%08X@%08X", &size, &address) != 2) {
-                sprintf(reply, "500 Malformed 140 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 140 command '%s'\r\n", arguments);
                 break;
             }
 
             if ((address >= 0x80000000) && ((address + size) <= 0x80200000)) {
-                sprintf(reply, "240 %08X@%08X\r\n", size, address);
-                RawReadSocket((char *)PSXM(address), size);
+                dynstr_append(&reply, "240 %08X@%08X\r\n", size, address);
+                RawReadSocket(client_socket, (char *)PSXM(address), size);
             } else {
-                sprintf(reply, "514 Invalid address or range: '%s'\r\n", arguments);
+                dynstr_append(&reply, "514 Invalid address or range: '%s'\r\n", arguments);
             }
             break;
         case 0x150:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 150 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 150 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -701,13 +745,13 @@ static void ProcessCommands() {
             } else {
                 mapping_e = 0;
             }
-            sprintf(reply, "250 Mapping of exec flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "250 Mapping of exec flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x151:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 151 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 151 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -719,13 +763,13 @@ static void ProcessCommands() {
             } else {
                 mapping_r8 = 0;
             }
-            sprintf(reply, "251 Mapping of read8 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "251 Mapping of read8 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x152:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 152 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 152 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -737,13 +781,13 @@ static void ProcessCommands() {
             } else {
                 mapping_r16 = 0;
             }
-            sprintf(reply, "252 Mapping of read16 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "252 Mapping of read16 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x153:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 153 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 153 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -755,13 +799,13 @@ static void ProcessCommands() {
             } else {
                 mapping_r32 = 0;
             }
-            sprintf(reply, "253 Mapping of read32 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "253 Mapping of read32 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x154:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 154 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 154 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -773,13 +817,13 @@ static void ProcessCommands() {
             } else {
                 mapping_w8 = 0;
             }
-            sprintf(reply, "254 Mapping of write8 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "254 Mapping of write8 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x155:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 155 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 155 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -791,13 +835,13 @@ static void ProcessCommands() {
             } else {
                 mapping_w16 = 0;
             }
-            sprintf(reply, "255 Mapping of write16 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "255 Mapping of write16 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x156:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 156 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 156 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -809,13 +853,13 @@ static void ProcessCommands() {
             } else {
                 mapping_w32 = 0;
             }
-            sprintf(reply, "256 Mapping of write32 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "256 Mapping of write32 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x160:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 160 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 160 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -824,13 +868,13 @@ static void ProcessCommands() {
             } else {
                 breakmp_e = 0;
             }
-            sprintf(reply, "260 Break on map of exec flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "260 Break on map of exec flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x161:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 161 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 161 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -839,13 +883,13 @@ static void ProcessCommands() {
             } else {
                 breakmp_r8 = 0;
             }
-            sprintf(reply, "261 Break on map of read8 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "261 Break on map of read8 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x162:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 162 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 162 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -854,13 +898,13 @@ static void ProcessCommands() {
             } else {
                 breakmp_r16 = 0;
             }
-            sprintf(reply, "262 Break on map of read16 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "262 Break on map of read16 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x163:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 163 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 163 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -869,13 +913,13 @@ static void ProcessCommands() {
             } else {
                 breakmp_r32 = 0;
             }
-            sprintf(reply, "263 Break on map of read32 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "263 Break on map of read32 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x164:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 164 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 164 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -884,13 +928,13 @@ static void ProcessCommands() {
             } else {
                 breakmp_w8 = 0;
             }
-            sprintf(reply, "264 Break on map of write8 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "264 Break on map of write8 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x165:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 165 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 165 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -899,13 +943,13 @@ static void ProcessCommands() {
             } else {
                 breakmp_w16 = 0;
             }
-            sprintf(reply, "265 Break on map of write16 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "265 Break on map of write16 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x166:
             code = 1;
             if (arguments) {
                 if (sscanf(arguments, "%02X", &code) != 1) {
-                    sprintf(reply, "500 Malformed 166 command '%s'\r\n", cmd);
+                    dynstr_append(&reply, "500 Malformed 166 command '%s'\r\n", cmd);
                     break;
                 }
             }
@@ -914,30 +958,37 @@ static void ProcessCommands() {
             } else {
                 breakmp_w32 = 0;
             }
-            sprintf(reply, "266 Break on map of write32 flow %s\r\n", code ? "started" : "stopped");
+            dynstr_append(&reply, "266 Break on map of write32 flow %s\r\n", code ? "started" : "stopped");
             break;
         case 0x170:
-            sfile = fopen("flow.idc", "wb");
-            fprintf(sfile, "#include <idc.idc>\r\n\r\n");
-            fprintf(sfile, "static main(void) {\r\n");
-            for (i = 0; i < 0x00200000; i++) {
-                if (IsMapMarked(i, MAP_EXEC_JAL)) {
-                    fprintf(sfile, "\tMakeFunction(0X8%07X,BADADDR);\r\n", i);
+        {
+            {
+                FILE *const sfile = fopen("flow.idc", "wb");
+                fprintf(sfile, "#include <idc.idc>\r\n\r\n");
+                fprintf(sfile, "static main(void) {\r\n");
+                for (i = 0; i < 0x00200000; i++) {
+                    if (IsMapMarked(i, MAP_EXEC_JAL)) {
+                        fprintf(sfile, "\tMakeFunction(0X8%07X,BADADDR);\r\n", i);
+                    }
                 }
+                fprintf(sfile, "}\r\n");
+                fclose(sfile);
             }
-            fprintf(sfile, "}\r\n");
-            fclose(sfile);
-            sfile = fopen("markcode.idc", "wb");
-            fprintf(sfile, "#include <idc.idc>\r\n\r\n");
-            fprintf(sfile, "static main(void) {\r\n");
-            for (i = 0; i < 0x00200000; i++) {
-                if (IsMapMarked(i, MAP_EXEC)) {
-                    fprintf(sfile, "\tMakeCode(0X8%07X);\r\n", i);
+
+            {
+                FILE *const sfile = fopen("markcode.idc", "wb");
+                fprintf(sfile, "#include <idc.idc>\r\n\r\n");
+                fprintf(sfile, "static main(void) {\r\n");
+                for (i = 0; i < 0x00200000; i++) {
+                    if (IsMapMarked(i, MAP_EXEC)) {
+                        fprintf(sfile, "\tMakeCode(0X8%07X);\r\n", i);
+                    }
                 }
+                fprintf(sfile, "}\r\n");
+                fclose(sfile);
+                dynstr_append(&reply, "270 flow.idc and markcode.idc dumped\r\n");
             }
-            fprintf(sfile, "}\r\n");
-            fclose(sfile);
-            sprintf(reply, "270 flow.idc and markcode.idc dumped\r\n");
+        }
             break;
         case 0x300:
             p = arguments;
@@ -946,18 +997,17 @@ static void ProcessCommands() {
             }
             if (p == arguments) {
                 if (first) {
-                    reply[0] = 0;
                     for (bp = first; bp; bp = next_breakpoint(bp)) {
-                        sprintf(reply, "%s400 %X@%08X-%s\r\n", reply, bp->number, bp->address, breakpoint_type_names[bp->type]);
+                        dynstr_append(&reply, "%s400 %X@%08X-%s\r\n", bp->number, bp->address, breakpoint_type_names[bp->type]);
                     }
                 } else {
-                    sprintf(reply, "530 No breakpoint\r\n");
+                    dynstr_append(&reply, "530 No breakpoint\r\n");
                 }
             } else {
                 if ((bp = find_breakpoint(code))) {
-                    sprintf(reply, "400 %X@%08X-%s\r\n", bp->number, bp->address, breakpoint_type_names[bp->type]);
+                    dynstr_append(&reply, "400 %X@%08X-%s\r\n", bp->number, bp->address, breakpoint_type_names[bp->type]);
                 } else {
-                    sprintf(reply, "530 Invalid breakpoint number: %X\r\n", code);
+                    dynstr_append(&reply, "530 Invalid breakpoint number: %X\r\n", code);
                 }
             }
             break;
@@ -968,107 +1018,107 @@ static void ProcessCommands() {
             }
             if (p == arguments) {
                 while (first != NULL) delete_breakpoint(first);
-                sprintf(reply, "401 All breakpoints deleted.\r\n");
+                dynstr_append(&reply, "401 All breakpoints deleted.\r\n");
             } else {
                 if ((bp = find_breakpoint(code))) {
                     delete_breakpoint(bp);
-                    sprintf(reply, "401 Breakpoint %X deleted.\r\n", code);
+                    dynstr_append(&reply, "401 Breakpoint %X deleted.\r\n", code);
                 } else {
-                    sprintf(reply, "530 Invalid breakpoint number: %X\r\n", code);
+                    dynstr_append(&reply, "530 Invalid breakpoint number: %X\r\n", code);
                 }
             }
             break;
         case 0x310:
             if (!arguments || sscanf(arguments, "%08X", &address) != 1) {
-                sprintf(reply, "500 Malformed 310 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 310 command '%s'\r\n", arguments);
                 break;
             }
-//            if ((address & 3) || (address < 0x80000000) || (address >= 0x80200000)) {
-//                sprintf(reply, "531 Invalid address %08X\r\n", address);
-//                break;
-//            }
+    //            if ((address & 3) || (address < 0x80000000) || (address >= 0x80200000)) {
+    //                dynstr_append(&reply, "531 Invalid address %08X\r\n", address);
+    //                break;
+    //            }
             code = add_breakpoint(BE, address);
-            sprintf(reply, "410 %X\r\n", code);
+            dynstr_append(&reply, "410 %X\r\n", code);
             break;
         case 0x320:
             if (!arguments || sscanf(arguments, "%08X", &address) != 1) {
-                sprintf(reply, "500 Malformed 320 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 320 command '%s'\r\n", arguments);
                 break;
             }
             if ((address < 0x80000000) || (address >= 0x80200000)) {
-                sprintf(reply, "532 Invalid address %08X\r\n", address);
+                dynstr_append(&reply, "532 Invalid address %08X\r\n", address);
                 break;
             }
             code = add_breakpoint(BR1, address);
-            sprintf(reply, "420 %X\r\n", code);
+            dynstr_append(&reply, "420 %X\r\n", code);
             break;
         case 0x321:
             if (!arguments || sscanf(arguments, "%08X", &address) != 1) {
-                sprintf(reply, "500 Malformed 321 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 321 command '%s'\r\n", arguments);
                 break;
             }
             if ((address & 1) || (address < 0x80000000) || (address >= 0x80200000)) {
-                sprintf(reply, "532 Invalid address %08X\r\n", address);
+                dynstr_append(&reply, "532 Invalid address %08X\r\n", address);
                 break;
             }
             code = add_breakpoint(BR2, address);
-            sprintf(reply, "421 %X\r\n", code);
+            dynstr_append(&reply, "421 %X\r\n", code);
             break;
         case 0x322:
             if (!arguments || sscanf(arguments, "%08X", &address) != 1) {
-                sprintf(reply, "500 Malformed 322 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 322 command '%s'\r\n", arguments);
                 break;
             }
             if ((address & 3) || (address < 0x80000000) || (address >= 0x80200000)) {
-                sprintf(reply, "532 Invalid address %08X\r\n", address);
+                dynstr_append(&reply, "532 Invalid address %08X\r\n", address);
                 break;
             }
             code = add_breakpoint(BR4, address);
-            sprintf(reply, "422 %X\r\n", code);
+            dynstr_append(&reply, "422 %X\r\n", code);
             break;
         case 0x330:
             if (!arguments || sscanf(arguments, "%08X", &address) != 1) {
-                sprintf(reply, "500 Malformed 330 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 330 command '%s'\r\n", arguments);
                 break;
             }
             if ((address < 0x80000000) || (address >= 0x80200000)) {
-                sprintf(reply, "533 Invalid address %08X\r\n", address);
+                dynstr_append(&reply, "533 Invalid address %08X\r\n", address);
                 break;
             }
             code = add_breakpoint(BW1, address);
-            sprintf(reply, "430 %X\r\n", code);
+            dynstr_append(&reply, "430 %X\r\n", code);
             break;
         case 0x331:
             if (!arguments || sscanf(arguments, "%08X", &address) != 1) {
-                sprintf(reply, "500 Malformed 331 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 331 command '%s'\r\n", arguments);
                 break;
             }
             if ((address & 1) || (address < 0x80000000) || (address >= 0x80200000)) {
-                sprintf(reply, "533 Invalid address %08X\r\n", address);
+                dynstr_append(&reply, "533 Invalid address %08X\r\n", address);
                 break;
             }
             code = add_breakpoint(BW2, address);
-            sprintf(reply, "431 %X\r\n", code);
+            dynstr_append(&reply, "431 %X\r\n", code);
             break;
         case 0x332:
             if (!arguments || sscanf(arguments, "%08X", &address) != 1) {
-                sprintf(reply, "500 Malformed 332 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 332 command '%s'\r\n", arguments);
                 break;
             }
             if ((address & 3) || (address < 0x80000000) || (address >= 0x80200000)) {
-                sprintf(reply, "533 Invalid address %08X\r\n", address);
+                dynstr_append(&reply, "533 Invalid address %08X\r\n", address);
                 break;
             }
             code = add_breakpoint(BW4, address);
-            sprintf(reply, "432 %X\r\n", code);
+            dynstr_append(&reply, "432 %X\r\n", code);
             break;
         case 0x390:
             paused = 1;
-            sprintf(reply, "490 Paused\r\n");
+            dynstr_append(&reply, "490 Paused\r\n");
             break;
         case 0x391:
             paused = 0;
-            sprintf(reply, "491 Resumed\r\n");
+            dynstr_append(&reply, "491 Resumed\r\n");
             break;
         case 0x395:
             p = arguments;
@@ -1079,7 +1129,7 @@ static void ProcessCommands() {
                 trace = 1;
             }
             paused = 0;
-            sprintf(reply, "495 Tracing\r\n");
+            dynstr_append(&reply, "495 Tracing\r\n");
             break;
         case 0x396:
             p = arguments;
@@ -1089,19 +1139,19 @@ static void ProcessCommands() {
             if (p == arguments) {
                 printpc = !printpc;
             }
-            sprintf(reply, "496 Printing %s\r\n", printpc ? "enabled" : "disabled");
+            dynstr_append(&reply, "496 Printing %s\r\n", printpc ? "enabled" : "disabled");
             break;
         case 0x398:
             paused = 0;
             trace = 0;
             reset = 2;
-            sprintf(reply, "498 Soft resetting\r\n");
+            dynstr_append(&reply, "498 Soft resetting\r\n");
             break;
         case 0x399:
             paused = 0;
             trace = 0;
             reset = 1;
-            sprintf(reply, "499 Resetting\r\n");
+            dynstr_append(&reply, "499 Resetting\r\n");
             break;
         case 0x3A0:
             // run to
@@ -1112,10 +1162,10 @@ static void ProcessCommands() {
                 paused = 0;
             }
             if (p == arguments) {
-                sprintf(reply, "500 Malformed 3A0 command '%s'\r\n", arguments);
+                dynstr_append(&reply, "500 Malformed 3A0 command '%s'\r\n", arguments);
                 break;
             }
-            sprintf(reply, "4A0 run to addr %08X\r\n", run_to_addr);
+            dynstr_append(&reply, "4A0 run to addr %08X\r\n", run_to_addr);
             break;
         case 0x3A1:
             // step over (jal)
@@ -1125,8 +1175,8 @@ static void ProcessCommands() {
                     step_over = 1;
                     step_over_addr = psxRegs.pc + 8;
                     paused = 0;
-                    
-                    sprintf(reply, "4A1 step over addr %08X\r\n", psxRegs.pc);
+
+                    dynstr_append(&reply, "4A1 step over addr %08X\r\n", psxRegs.pc);
                 }
                 else {
                     trace = 1;
@@ -1135,13 +1185,14 @@ static void ProcessCommands() {
             }
             break;
         default:
-            sprintf(reply, "500 Unknown command '%s'\r\n", cmd);
+            dynstr_append(&reply, "500 Unknown command '%s'\r\n", cmd);
             break;
         }
-        WriteSocket(reply, strlen(reply));
+        WriteSocket(client_socket, reply.str, reply.len);
+        dynstr_free(&reply);
 
         if (dumping) {
-            WriteSocket(dump, size);
+            WriteSocket(client_socket, dump, size);
         }
 
         if (save) {
@@ -1156,11 +1207,11 @@ void DebugCheckBP(u32 address, enum breakpoint_types type) {
 
     if (!debugger_active || reset)
         return;
-    
+
     for (bp = first; bp; bp = next_breakpoint(bp)) {
         if ((bp->type == type) && (bp->address == address)) {
             sprintf(reply, "030 %X@%08X\r\n", bp->number, psxRegs.pc);
-            WriteSocket(reply, strlen(reply));
+            WriteSocket(client_socket, reply, strlen(reply));
             paused = 1;
             return;
         }
@@ -1168,49 +1219,49 @@ void DebugCheckBP(u32 address, enum breakpoint_types type) {
     if (breakmp_e && type == BE) {
         if (!IsMapMarked(address, MAP_EXEC)) {
             sprintf(reply, "010 %08X@%08X\r\n", address, psxRegs.pc);
-            WriteSocket(reply, strlen(reply));
+            WriteSocket(client_socket, reply, strlen(reply));
             paused = 1;
         }
     }
     if (breakmp_r8 && type == BR1) {
         if (!IsMapMarked(address, MAP_R8)) {
             sprintf(reply, "011 %08X@%08X\r\n", address, psxRegs.pc);
-            WriteSocket(reply, strlen(reply));
+            WriteSocket(client_socket, reply, strlen(reply));
             paused = 1;
         }
     }
     if (breakmp_r16 && type == BR2) {
         if (!IsMapMarked(address, MAP_R16)) {
             sprintf(reply, "012 %08X@%08X\r\n", address, psxRegs.pc);
-            WriteSocket(reply, strlen(reply));
+            WriteSocket(client_socket, reply, strlen(reply));
             paused = 1;
         }
     }
     if (breakmp_r32 && type == BR4) {
         if (!IsMapMarked(address, MAP_R32)) {
             sprintf(reply, "013 %08X@%08X\r\n", address, psxRegs.pc);
-            WriteSocket(reply, strlen(reply));
+            WriteSocket(client_socket, reply, strlen(reply));
             paused = 1;
         }
     }
     if (breakmp_w8 && type == BW1) {
         if (!IsMapMarked(address, MAP_W8)) {
             sprintf(reply, "014 %08X@%08X\r\n", address, psxRegs.pc);
-            WriteSocket(reply, strlen(reply));
+            WriteSocket(client_socket, reply, strlen(reply));
             paused = 1;
         }
     }
     if (breakmp_w16 && type == BW2) {
         if (!IsMapMarked(address, MAP_W16)) {
             sprintf(reply, "015 %08X@%08X\r\n", address, psxRegs.pc);
-            WriteSocket(reply, strlen(reply));
+            WriteSocket(client_socket, reply, strlen(reply));
             paused = 1;
         }
     }
     if (breakmp_w32 && type == BW4) {
         if (!IsMapMarked(address, MAP_W32)) {
             sprintf(reply, "016 %08X@%08X\r\n", address, psxRegs.pc);
-            WriteSocket(reply, strlen(reply));
+            WriteSocket(client_socket, reply, strlen(reply));
             paused = 1;
         }
     }
