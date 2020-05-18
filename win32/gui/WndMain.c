@@ -152,7 +152,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	memset(&Config, 0, sizeof(PcsxConfig));
 	strcpy(Config.Net, "Disabled");
 	if (LoadConfig() == -1) {
+		Config.PGXP_GTE = 1;
+		Config.PGXP_Cache = 1;
+		Config.PGXP_Texture = 1;
+		Config.PGXP_Mode = 1;
+		Config.HideCursor = 1;
 		Config.PsxAuto = 1;
+
 		strcpy(Config.PluginsDir, "Plugins\\");
 		strcpy(Config.BiosDir,    "Bios\\");
 
@@ -1909,7 +1915,7 @@ void CreateMainWindow(int nCmdShow) {
 
 	hWnd = CreateWindow("PCSXR Main",
 						"PCSXR",
-						WS_CAPTION | WS_POPUPWINDOW | WS_MINIMIZEBOX,
+						WS_OVERLAPPED | WS_MINIMIZEBOX | WS_SYSMENU,
 						CW_USEDEFAULT,
 						0,
 						426,
