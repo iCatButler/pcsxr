@@ -109,7 +109,7 @@ void ConfigurePlugins() {
 	UpdatePluginsBIOS_UpdateGUI(builder);
 
 	ConfDlg = GTK_WIDGET(gtk_builder_get_object(builder, "ConfDlg"));
-	
+
 	gtk_window_set_title(GTK_WINDOW(ConfDlg), _("Configure PCSXR"));
 	gtk_widget_show (ConfDlg);
 
@@ -219,7 +219,7 @@ void OnConf_Net() {
 	}
 
 	NetDlg = GTK_WIDGET(gtk_builder_get_object(builder, "NetDlg"));
-	
+
 	gtk_widget_show (NetDlg);
 
 	FindNetPlugin(builder);
@@ -791,7 +791,7 @@ static void FindNetPlugin() {
 	char plugin[MAXPATHLEN],name[MAXPATHLEN];
 
 	NetConfS.plugins  = 0;
-	NetConfS.glist = NULL; 
+	NetConfS.glist = NULL;
 
 	NetConfS.plugins += 2;
 	strcpy(NetConfS.plist[NetConfS.plugins - 1], "Disabled");
@@ -894,7 +894,7 @@ void OnCpu_Clicked(GtkDialog *dialog, gint arg1, gpointer user_data) {
 
 	// If nothing chosen, default to NTSC
 	tmp = gtk_combo_box_get_active (GTK_COMBO_BOX (widget));
-	if (tmp == -1)	
+	if (tmp == -1)
 		tmp = PSX_TYPE_NTSC;
 
 	if (!strcmp("NTSC", psxtypes[tmp]))
@@ -920,6 +920,7 @@ void OnCpu_Clicked(GtkDialog *dialog, gint arg1, gpointer user_data) {
 	Config.Cdda = gtk_combo_box_get_active(GTK_COMBO_BOX(gtk_builder_get_object(builder, "GtkCombo_CDDA")));
 	Config.SlowBoot = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder, "GtkCheckButton_SlowBoot")));
 	Config.PsxAuto = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder, "GtkCheckButton_PsxAuto")));
+	Config.GdbServer = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder, "GtkCheckButton_GdbServer")));
 
 	t = Config.Debug;
 	Config.Debug = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder, "GtkCheckButton_Dbg")));
@@ -974,7 +975,7 @@ void OnConf_Cpu() {
 	char buf[25];
 
 	builder = gtk_builder_new();
-	
+
 	if (!gtk_builder_add_from_resource(builder, "/org/pcsxr/gui/pcsxr.ui", NULL)) {
 		g_warning("Error: interface could not be loaded!");
 		return;
