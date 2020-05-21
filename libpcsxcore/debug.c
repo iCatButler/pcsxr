@@ -395,7 +395,16 @@ void DebugVSync() {
         return;
     }
 
-    client_socket = GetClient(server_socket);
+    if (client_socket < 1)
+    {
+        client_socket = GetClient(server_socket);
+
+        if (client_socket > 0)
+        {
+            DebugHello();
+        }
+    }
+
     ProcessCommands();
 }
 
@@ -466,7 +475,17 @@ void ProcessDebug() {
         }
     }
     while (paused) {
-        client_socket = GetClient(server_socket);
+
+        if (client_socket < 1)
+        {
+            client_socket = GetClient(server_socket);
+
+            if (client_socket > 0)
+            {
+                DebugHello();
+            }
+        }
+
         ProcessCommands();
         GPU_updateLace();
         SysUpdate();
@@ -497,7 +516,6 @@ static void ProcessCommands() {
             case READ_SOCKET_SHUTDOWN:
                 /* Fall through. */
             default:
-                perror("recv() error");
                 return;
         }
 

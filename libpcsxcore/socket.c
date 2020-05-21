@@ -157,15 +157,12 @@ static enum read_socket_err ReadSocketOS(int client_socket, char *buf, size_t *c
     switch (res)
     {
         case -1:
-            fprintf(stderr, "READ_SOCKET_ERR_RECV, recv(%d, %p, %zu, %d)\n", client_socket, buf, *len, 0);
             return READ_SOCKET_ERR_RECV;
 
         case 0:
-            fprintf(stderr, "READ_SOCKET_SHUTDOWN\n");
             return READ_SOCKET_SHUTDOWN;
 
         default:
-            printf("received %zu/%zu bytes\n", res, *len);
             *len = res;
             break;
     }
