@@ -256,7 +256,9 @@ void WriteSocket(int client_socket, const char *buffer, size_t len) {
     if (!client_socket)
         return;
 
-    send(client_socket, buffer, len, 0);
+    if (send(client_socket, buffer, len, 0) == -1) {
+        perror("send():");
+    }
 }
 
 void SetsBlock(int s_socket) {

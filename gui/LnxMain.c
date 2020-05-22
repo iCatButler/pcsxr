@@ -443,7 +443,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		
+
 		if (loadst==0) {
 			loadst = UpdateMenuSlots() + 1;
 		}
@@ -492,6 +492,10 @@ int SysInit() {
 
 	if (Config.Debug) {
 		StartDebugger();
+	}
+
+	if (Config.GdbServer) {
+		GdbStartServer();
 	}
 
 	return 0;

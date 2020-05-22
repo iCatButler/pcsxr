@@ -474,7 +474,7 @@ void ProcessDebug() {
             MarkMap(_Rd_, MAP_EXEC_JAL);
         }
     }
-    while (paused) {
+    while (paused || GdbServerRunning()) {
 
         if (client_socket < 1)
         {

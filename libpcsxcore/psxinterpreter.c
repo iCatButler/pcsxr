@@ -152,12 +152,12 @@ static void delayReadWrite(int reg, u32 bpc) {
 	psxBranchTest();
 }
 
-// this defines shall be used with the tmp 
+// this defines shall be used with the tmp
 // of the next func (instead of _Funct_...)
-#define _tFunct_  ((tmp      ) & 0x3F)  // The funct part of the instruction register 
-#define _tRd_     ((tmp >> 11) & 0x1F)  // The rd part of the instruction register 
-#define _tRt_     ((tmp >> 16) & 0x1F)  // The rt part of the instruction register 
-#define _tRs_     ((tmp >> 21) & 0x1F)  // The rs part of the instruction register 
+#define _tFunct_  ((tmp      ) & 0x3F)  // The funct part of the instruction register
+#define _tRd_     ((tmp >> 11) & 0x1F)  // The rd part of the instruction register
+#define _tRt_     ((tmp >> 16) & 0x1F)  // The rt part of the instruction register
+#define _tRs_     ((tmp >> 21) & 0x1F)  // The rs part of the instruction register
 #define _tSa_     ((tmp >>  6) & 0x1F)  // The sa part of the instruction register
 
 int psxTestLoadDelay(int reg, u32 tmp) {
@@ -184,7 +184,7 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 				// SYSCALL/BREAK just a break;
 
 				case 0x20: case 0x21: case 0x22: case 0x23:
-				case 0x24: case 0x25: case 0x26: case 0x27: 
+				case 0x24: case 0x25: case 0x26: case 0x27:
 				case 0x2a: case 0x2b: // ADD/ADDU...
 				case 0x04: case 0x06: case 0x07: // SLLV...
 					if (_tRd_ == reg && (_tRt_ == reg || _tRs_ == reg)) return 1; else
@@ -271,7 +271,7 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 
 		case 0x12: // COP2
 			switch (_tFunct_) {
-				case 0x00: 
+				case 0x00:
 					switch (_tRs_) {
 						case 0x00: // MFC2
 							if (_tRt_ == reg) return 3;
@@ -721,9 +721,9 @@ void psxLB() {
 
 
 	if (_Rt_) {
-		_i32(_rRt_) = (signed char)psxMemRead8(_oB_); 
+		_i32(_rRt_) = (signed char)psxMemRead8(_oB_);
 	} else {
-		psxMemRead8(_oB_); 
+		psxMemRead8(_oB_);
 	}
 }
 
@@ -743,7 +743,7 @@ void psxLBU() {
 	if (_Rt_) {
 		_u32(_rRt_) = psxMemRead8(_oB_);
 	} else {
-		psxMemRead8(_oB_); 
+		psxMemRead8(_oB_);
 	}
 }
 
@@ -828,7 +828,7 @@ void psxLWL() {
 
 
 	if (!_Rt_) return;
-	_u32(_rRt_) =	( _u32(_rRt_) & LWL_MASK[shift]) | 
+	_u32(_rRt_) =	( _u32(_rRt_) & LWL_MASK[shift]) |
 					( mem << LWL_SHIFT[shift]);
 
 	/*
@@ -850,7 +850,7 @@ void psxLWR() {
 	u32 mem = psxMemRead32(addr & ~3);
 
 
-	
+
 	// load delay = 1 latency
 	if( branch == 0 )
 	{
@@ -864,7 +864,7 @@ void psxLWR() {
 
 
 	if (!_Rt_) return;
-	_u32(_rRt_) =	( _u32(_rRt_) & LWR_MASK[shift]) | 
+	_u32(_rRt_) =	( _u32(_rRt_) & LWR_MASK[shift]) |
 					( mem >> LWR_SHIFT[shift]);
 
 	/*
@@ -940,7 +940,7 @@ void psxMFC0()
 
 
 	if (!_Rt_) return;
-	
+
 	_i32(_rRt_) = (int)_rFs_;
 }
 
@@ -958,7 +958,7 @@ void psxCFC0()
 
 
 	if (!_Rt_) return;
-	
+
 	_i32(_rRt_) = (int)_rFs_;
 }
 
@@ -1031,7 +1031,7 @@ void psxCFC2()
 * Unknow instruction (would generate an exception)       *
 * Format:  ?                                             *
 *********************************************************/
-void psxNULL() { 
+void psxNULL() {
 #ifdef PSXCPU_LOG
 	PSXCPU_LOG("psx: Unimplemented op %x\n", psxRegs.code);
 #endif
@@ -1071,9 +1071,9 @@ void (*psxBSC[64])() = {
 	psxCOP0   , psxNULL  , psxCOP2, psxNULL , psxNULL, psxNULL, psxNULL, psxNULL,
 	psxNULL   , psxNULL  , psxNULL, psxNULL , psxNULL, psxNULL, psxNULL, psxNULL,
 	psxLB     , psxLH    , psxLWL , psxLW   , psxLBU , psxLHU , psxLWR , psxNULL,
-	psxSB     , psxSH    , psxSWL , psxSW   , psxNULL, psxNULL, psxSWR , psxNULL, 
+	psxSB     , psxSH    , psxSWL , psxSW   , psxNULL, psxNULL, psxSWR , psxNULL,
 	psxNULL   , psxNULL  , gteLWC2, psxNULL , psxNULL, psxNULL, psxNULL, psxNULL,
-	psxNULL   , psxNULL  , gteSWC2, psxHLE  , psxNULL, psxNULL, psxNULL, psxNULL 
+	psxNULL   , psxNULL  , gteSWC2, psxHLE  , psxNULL, psxNULL, psxNULL, psxNULL
 };
 
 
@@ -1108,7 +1108,7 @@ void (*psxCP2[64])() = {
 	gteDPCS , gteINTPL, gteMVMVA, gteNCDS, gteCDP , psxNULL , gteNCDT , psxNULL, // 10
 	psxNULL , psxNULL , psxNULL , gteNCCS, gteCC  , psxNULL , gteNCS  , psxNULL, // 18
 	gteNCT  , psxNULL , psxNULL , psxNULL, psxNULL, psxNULL , psxNULL , psxNULL, // 20
-	gteSQR  , gteDCPL , gteDPCT , psxNULL, psxNULL, gteAVSZ3, gteAVSZ4, psxNULL, // 28 
+	gteSQR  , gteDCPL , gteDPCT , psxNULL, psxNULL, gteAVSZ3, gteAVSZ4, psxNULL, // 28
 	gteRTPT , psxNULL , psxNULL , psxNULL, psxNULL, psxNULL , psxNULL , psxNULL, // 30
 	psxNULL , psxNULL , psxNULL , psxNULL, psxNULL, gteGPF  , gteGPL  , gteNCCT  // 38
 };
@@ -1182,7 +1182,7 @@ static void intReset() {
 }
 
 static void intExecute() {
-	for (;;) 
+	for (;;)
 		execI();
 }
 
@@ -1198,13 +1198,14 @@ static void intShutdown() {
 }
 
 // interpreter execution
-static inline void execI() { 
+static inline void execI() {
 	u32 *code = Read_ICache(psxRegs.pc, FALSE);
 	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
 
 	debugI();
 
-	if (Config.Debug) ProcessDebug();
+	if (Config.GdbServer) GdbServerProcessDebug();
+	else if (Config.Debug) ProcessDebug();
 
 	psxRegs.pc += 4;
 	psxRegs.cycle += BIAS;

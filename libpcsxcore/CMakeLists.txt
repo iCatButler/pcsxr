@@ -98,6 +98,7 @@ set(SRCS  psxbios.c
           pgxp_gte.c
           pgxp_mem.c
           pgxp_value.c
+          gdb_server.c
 )
 
 set(LIBS "-lm")

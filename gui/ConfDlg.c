@@ -929,6 +929,10 @@ void OnCpu_Clicked(GtkDialog *dialog, gint arg1, gpointer user_data) {
 		else StopDebugger();
 	}
 
+	if (Config.GdbServer) {
+		GdbStartServer();
+	}
+
 	t = Config.Cpu;
 	Config.Cpu = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder, "GtkCheckButton_Cpu")));
 	if (t != Config.Cpu) {

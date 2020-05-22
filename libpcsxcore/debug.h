@@ -46,7 +46,7 @@ extern char *disRNameCP0[];
 
 char* disR3000AF(u32 code, u32 pc);
 
-/* 
+/*
  * Specficies which logs should be activated.
  */
 
