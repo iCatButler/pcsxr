@@ -32,6 +32,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include "../libpcsxcore/sio.h"
+#include "../gdbstub/gdbstub_sys.h"
 
 #include "Linux.h"
 #include "ConfDlg.h"
@@ -490,13 +491,10 @@ int SysInit() {
 
 	LoadMcds(Config.Mcd1, Config.Mcd2);	/* TODO Do we need to have this here, or in the calling main() function?? */
 
-	if (Config.Debug) {
+	if (Config.Debug)
 		StartDebugger();
-	}
-
-	if (Config.GdbServer) {
-		GdbStartServer();
-	}
+	else if (Config.GdbServer)
+		dbg_start();
 
 	return 0;
 }

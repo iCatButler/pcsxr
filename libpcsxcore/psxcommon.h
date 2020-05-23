@@ -70,7 +70,6 @@ typedef uint8_t boolean;
 // Local includes
 #include "system.h"
 #include "debug.h"
-#include "gdb_server.h"
 
 #if defined (__linux__) || defined (__MACOSX__)
 #define strnicmp strncasecmp

@@ -28,6 +28,7 @@
 #include "pgxp_debug.h"
 #include "pgxp_cpu.h"
 #include "pgxp_gte.h"
+#include "../gdbstub/gdbstub_sys.h"
 
 static int branch = 0;
 static int branch2 = 0;
@@ -1204,7 +1205,7 @@ static inline void execI() {
 
 	debugI();
 
-	if (Config.GdbServer) GdbServerProcessDebug();
+	if (Config.GdbServer) dbg_sys_process();
 	else if (Config.Debug) ProcessDebug();
 
 	psxRegs.pc += 4;

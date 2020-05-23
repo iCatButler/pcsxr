@@ -42,7 +42,7 @@ int HasClient(int client_socket);
 
 enum read_socket_err ReadSocket(int client_socket, char *buffer, size_t *len);
 int RawReadSocket(int client_socket, char *buffer, size_t len);
-void WriteSocket(int client_socket, const char *buffer, size_t len);
+void WriteSocket(int client_socket, const void *buffer, size_t len);
 
 void SetsBlock(int s_socket);
 void SetsNonblock(int s_socket);

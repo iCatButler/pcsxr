@@ -34,7 +34,6 @@
 #include "sio.h"
 #include "misc.h"
 #include "cheat.h"
-#include "gdb_server.h"
 
 #ifdef __MINGW32__
 #ifndef LVM_GETSELECTIONMARK

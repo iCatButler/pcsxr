@@ -1,3 +1,6 @@
 [submodule "dynstr/dynstr"]
 	path = dynstr/dynstr
 	url = https://github.com/XaviDCR92/dynstr
+[submodule "gdbstub/gdbstub"]
+	path = gdbstub/gdbstub
+	url = https://github.com/XaviDCR92/gdbstub

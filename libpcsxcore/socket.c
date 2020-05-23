@@ -252,8 +252,8 @@ int RawReadSocket(int client_socket, char *buffer, size_t len) {
 #endif
 }
 
-void WriteSocket(int client_socket, const char *buffer, size_t len) {
-    if (!client_socket)
+void WriteSocket(int client_socket, const void *buffer, size_t len) {
+    if (client_socket <= 0)
         return;
 
     if (send(client_socket, buffer, len, 0) == -1) {

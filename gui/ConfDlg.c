@@ -32,6 +32,7 @@
 #include "ConfDlg.h"
 
 #include "../libpcsxcore/plugins.h"
+#include "../gdbstub/gdbstub_sys.h"
 
 static void OnBiosPath_Changed(GtkWidget *wdg, gpointer data);
 static void OnConf_Clicked(GtkDialog *dialog, gint arg1, gpointer user_data);
@@ -929,9 +930,8 @@ void OnCpu_Clicked(GtkDialog *dialog, gint arg1, gpointer user_data) {
 		else StopDebugger();
 	}
 
-	if (Config.GdbServer) {
-		GdbStartServer();
-	}
+	if (Config.GdbServer)
+		dbg_start();
 
 	t = Config.Cpu;
 	Config.Cpu = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder, "GtkCheckButton_Cpu")));

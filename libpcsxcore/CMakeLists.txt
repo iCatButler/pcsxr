@@ -98,7 +98,6 @@ set(SRCS  psxbios.c
           pgxp_gte.c
           pgxp_mem.c
           pgxp_value.c
-          gdb_server.c
 )
 
 set(LIBS "-lm")
@@ -117,4 +116,4 @@ endif()
 set(SRCS ${SRCS} ${DYNAREC_SRC})
 
 add_library(pcsxcore STATIC ${SRCS})
-target_link_libraries(pcsxcore dynstr ${FFMPEG_LIBRARIES} ${LibArchive_LIBRARIES} ${LIBS})
+target_link_libraries(pcsxcore dynstr gdbstub ${FFMPEG_LIBRARIES} ${LibArchive_LIBRARIES} ${LIBS})
