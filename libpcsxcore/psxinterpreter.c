@@ -1198,6 +1198,68 @@ static void intClear(u32 Addr, u32 Size) {
 static void intShutdown() {
 }
 
+static void process_gdb(void) {
+	static int shutdown;
+	static u32 tgt_addr;
+	static int step, must_continue;
+	struct msg msg;
+
+	if (shutdown)
+		return;
+
+	if (step || (must_continue && tgt_addr && tgt_addr == psxRegs.pc)) {
+		msg.type = MSG_TYPE_HIT;
+#if DEBUG == 1
+		printf("hit address 0x%08X\n", psxRegs.pc);
+#endif
+		gdbstub_sys_send(&msg);
+		must_continue = 0;
+		step = 0;
+	}
+
+	if (!must_continue) {
+		gdbstub_sys_recv(&msg);
+
+		switch (msg.type) {
+			case MSG_TYPE_CONTINUE:
+				must_continue = 1;
+				break;
+
+			case MSG_TYPE_STEP:
+				step = 1;
+				break;
+
+			case MSG_TYPE_REMOVE_BREAKPOINT: {
+				struct msg out;
+
+				tgt_addr = 0;
+				out.type = MSG_TYPE_ACK;
+
+				gdbstub_sys_send(&out);
+			}
+				break;
+
+			case MSG_TYPE_BREAKPOINT: {
+				struct msg out;
+
+				tgt_addr = msg.data.breakpoint.addr;
+				out.type = MSG_TYPE_ACK;
+
+				gdbstub_sys_send(&out);
+			}
+				break;
+
+			case MSG_TYPE_SHUTDOWN:
+				shutdown = 1;
+				break;
+
+			default:
+				fprintf(stderr, "unknown msg.type %d\n", msg.type);
+				break;
+		}
+	}
+}
+
 // interpreter execution
 static inline void execI() {
 	u32 *code = Read_ICache(psxRegs.pc, FALSE);
@@ -1205,7 +1267,7 @@ static inline void execI() {
 
 	debugI();
 
-	if (Config.GdbServer) dbg_sys_process();
+	if (Config.GdbServer) process_gdb();
 	else if (Config.Debug) ProcessDebug();
 
 	psxRegs.pc += 4;

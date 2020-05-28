@@ -42,7 +42,11 @@ enum DBG_REGISTER {
 	DBG_CPU_MIPS_I_REG_BAD,
 	DBG_CPU_MIPS_I_REG_CAUSE,
 	DBG_CPU_MIPS_I_REG_PC,
-	DBG_CPU_NUM_REGISTERS
+
+	/* GDB requests 73, where 38 are the ones above and the rest
+	 * are the floating-point registers. This way, unused registers
+	 * are left to zero. */
+	DBG_CPU_NUM_REGISTERS = 73
 };
 
 typedef unsigned int reg;
@@ -52,7 +56,29 @@ struct dbg_state {
 	reg registers[DBG_CPU_NUM_REGISTERS];
 };
 
+struct msg {
+	enum {
+		MSG_TYPE_CONTINUE,
+		MSG_TYPE_BREAKPOINT,
+		MSG_TYPE_STEP,
+		MSG_TYPE_ACK,
+		MSG_TYPE_REMOVE_BREAKPOINT,
+		MSG_TYPE_SHUTDOWN,
+
+		/* Response frames. */
+		MSG_TYPE_HIT
+	} type;
+
+	union {
+		struct {
+			address addr;
+		} breakpoint;
+	} data;
+};
+
 void dbg_start(void);
-void dbg_sys_process(void);
+void dbg_stop(void);
+void gdbstub_sys_send(const struct msg *msg);
+void gdbstub_sys_recv(struct msg *msg);
 
 #endif /* GDBSTUB_SYS_H */

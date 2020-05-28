@@ -88,7 +88,7 @@ void StopServer(int s_socket) {
 #endif
 }
 
-int GetClient(int s_socket) {
+int GetClient(int s_socket, int blocking) {
     int new_socket = accept(s_socket, NULL, NULL);
 
 #ifdef _WIN32
@@ -100,6 +100,7 @@ int GetClient(int s_socket) {
 #endif
 
 #ifndef _WIN32
+    if (!blocking)
     {
         int flags;
         flags = fcntl(new_socket, F_GETFL, 0);

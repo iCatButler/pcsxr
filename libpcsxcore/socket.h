@@ -35,7 +35,7 @@ enum read_socket_err
 int StartServer(unsigned short port);
 void StopServer(int s_socket);
 
-int GetClient(int s_socket);
+int GetClient(int s_socket, int blocking);
 void CloseClient(int client_socket);
 
 int HasClient(int client_socket);

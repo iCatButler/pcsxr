@@ -3,8 +3,24 @@
 #include "libpcsxcore/socket.h"
 #include "libpcsxcore/r3000a.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
+
+#ifdef _POSIX_VERSION
+#include <pthread.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <mqueue.h>
+#include <errno.h>
+
+static pthread_t thread;
+static mqd_t in_queue, out_queue;
+#endif
 
 static int server_socket, client_socket;
+static enum {
+    PAUSED,
+} state;
 
 static void update_regs(struct dbg_state *const dbg_state)
 {
@@ -56,13 +72,6 @@ static void update_regs(struct dbg_state *const dbg_state)
 	dbg_state->registers[DBG_CPU_MIPS_I_REG_PC] = psxRegs.pc;
 }
 
-void dbg_sys_process(void)
-{
-    static struct dbg_state dbg_state;
-    update_regs(&dbg_state);
-    dbg_main(&dbg_state);
-}
-
 int dbg_sys_getc(void)
 {
     while (1) {
@@ -74,15 +83,22 @@ int dbg_sys_getc(void)
             case READ_SOCKET_OK:
                 return packet;
 
-            case READ_SOCKET_SHUTDOWN:
+            case READ_SOCKET_SHUTDOWN: {
+                struct msg msg;
+
+                printf("gdb shutdown\n");
                 client_socket = 0;
+                msg.type = MSG_TYPE_SHUTDOWN;
+
+                    if (mq_send(out_queue, (const char *)&msg, sizeof msg, 0))
+                        perror("dbg_sys_getc() mq_send()");
                 return EOF;
+            }
 
             case READ_SOCKET_ERR_INVALID_ARG:
                 /* Fall through. */
             case READ_SOCKET_ERR_RECV:
                 /* Fall through. */
-
             default:
                 break;
         }
@@ -106,27 +122,247 @@ int dbg_sys_mem_writeb(address addr, char val)
     return 0;
 }
 
+#ifdef _POSIX_VERSION
+static int wait_hit_or_break(struct msg *msg)
+{
+    do {
+        int ret = mq_receive(in_queue, (char *)msg, sizeof *msg, 0);
+
+        if (ret < 0 && errno == EAGAIN) {
+            /* Breakpoint has not been hit yet, look for incoming messages from gdb. */
+            char packet;
+            size_t len = sizeof packet;
+            const enum read_socket_err err = ReadSocket(client_socket, &packet, &len);
+
+            switch (err) {
+                case READ_SOCKET_OK:
+                    if (len && packet == 0x03)
+                        return 0;
+
+                    break;
+
+                case READ_SOCKET_SHUTDOWN:
+                    printf("gdb shutdown\n");
+                    client_socket = 0;
+                    msg->type = MSG_TYPE_SHUTDOWN;
+
+                    if (mq_send(out_queue, (const char *)msg, sizeof *msg, 0))
+                        perror("wait_hit_or_break() mq_send()");
+
+                    return EOF;
+
+                case READ_SOCKET_ERR_INVALID_ARG:
+                    /* Fall through. */
+                case READ_SOCKET_ERR_RECV:
+                    /* Fall through. */
+                default:
+                    break;
+            }
+        }
+        else if (msg->type != MSG_TYPE_HIT) {
+            fprintf(stderr, "unexpected msg.type %d\n", msg->type);
+            return 1;
+        }
+        else
+            return 0;
+    } while (1);
+
+    return 1;
+}
+#endif
+
+#ifdef _POSIX_VERSION
 int dbg_sys_continue(void)
 {
-    return 0;
-}
+    struct msg msg;
 
+    msg.type = MSG_TYPE_CONTINUE;
+
+    if (mq_send(out_queue, (const char *)&msg, sizeof msg, 0)) {
+        perror("dbg_sys_continue(): mq_send()");
+        return 1;
+    }
+
+    return wait_hit_or_break(&msg);
+}
+#endif
+
+#ifdef _POSIX_VERSION
 int dbg_sys_step(void)
 {
+    struct msg msg;
+
+    msg.type = MSG_TYPE_STEP;
+
+    if (mq_send(out_queue, (const char *)&msg, sizeof msg, 0)) {
+        perror("dbg_sys_step(): mq_send()");
+    }
+
+    return wait_hit_or_break(&msg);
+}
+#endif
+
+#ifdef _POSIX_VERSION
+static int wait_ack(struct msg *msg)
+{
+    int ret;
+
+    do {
+        ret = mq_receive(in_queue, (char *)msg, sizeof *msg, 0);
+    } while (ret < 0 && errno == EAGAIN);
+
+    if (msg->type != MSG_TYPE_ACK) {
+        fprintf(stderr, "unexpected msg.type %d\n", msg->type);
+        return 1;
+    }
+
     return 0;
+}
+#endif
+
+#ifdef _POSIX_VERSION
+int dbg_sys_breakpoint(address addr)
+{
+    struct msg msg;
+
+    msg.type = MSG_TYPE_BREAKPOINT;
+    msg.data.breakpoint.addr = addr;
+
+    if (mq_send(out_queue, (const char *)&msg, sizeof msg, 0)) {
+        perror("dbg_sys_breakpoint(): mq_send()");
+    }
+
+    return wait_ack(&msg);
+}
+#endif
+
+#ifdef _POSIX_VERSION
+int dbg_sys_del_breakpoint(address addr)
+{
+    struct msg msg;
+
+    msg.type = MSG_TYPE_REMOVE_BREAKPOINT;
+
+    if (mq_send(out_queue, (const char *)&msg, sizeof msg, 0)) {
+        perror("dbg_sys_breakpoint(): mq_send()");
+    }
+
+    return wait_ack(&msg);
+}
+#endif
+
+#ifdef _POSIX_VERSION
+static int queue_create(void)
+{
+    struct mq_attr attr;
+
+    attr.mq_msgsize = sizeof (struct msg);
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = 4;
+
+    mq_unlink("/pcsxrin");
+    in_queue = mq_open("/pcsxrin", O_CREAT | O_RDWR | O_EXCL | O_NONBLOCK, 0600, &attr);
+
+    mq_unlink("/pcsxrout");
+    out_queue = mq_open("/pcsxrout", O_CREAT | O_RDWR | O_EXCL, 0600, &attr);
+
+    if ((out_queue < 0) || (in_queue < 0)) {
+        perror("mq_open()");
+        return 1;
+    }
+
+    return 0;
+}
+#endif
+
+static int exit_loop;
+
+static void *loop(void *const args)
+{
+    struct dbg_state dbg_state = {0};
+
+    SetsBlock(server_socket);
+
+    if ((client_socket = GetClient(server_socket, 1)) < 0) {
+        fprintf(stderr, "GetClient() failed\n");
+        return NULL;
+    }
+
+    SetsNonblock(client_socket);
+
+    printf("Accepted gdb connection\n");
+
+    while (!exit_loop) {
+        update_regs(&dbg_state);
+        dbg_main(&dbg_state);
+    }
+
+    return NULL;
+}
+
+#ifdef _POSIX_VERSION
+static void start_thread(void)
+{
+    if (pthread_create(&thread, NULL, loop, NULL))
+        perror("could not start gdb server thread");
+}
+#endif
+
+#ifdef _POSIX_VERSION
+static void stop_thread(void)
+{
+    if (pthread_join(thread, NULL))
+        perror("pthread_join()");
+
+    mq_unlink("/pcsxrin");
+    mq_unlink("/pcsxrout");
+}
+#endif
+
+#ifdef _POSIX_VERSION
+void gdbstub_sys_recv(struct msg *msg)
+{
+    const ssize_t sz = mq_receive(out_queue, (char *)msg, sizeof *msg, 0);
+
+    if (sz < 0)
+        perror("mq_receive");
+}
+#endif
+
+#ifdef _POSIX_VERSION
+void gdbstub_sys_send(const struct msg *msg)
+{
+    if (mq_send(in_queue, (const char *)msg, sizeof *msg, 0)) {
+        perror("dbg_sys_send(): mq_send()");
+    }
+}
+#endif
+
+void dbg_stop(void)
+{
+    exit_loop = 1;
+    stop_thread();
 }
 
 void dbg_start(void)
 {
-    const unsigned short port = 3333;
+    if (server_socket > 0) {
+        fprintf(stderr, "gdb server already started\n");
+        return;
+    }
+    else {
+        const unsigned short port = 3333;
 
-    if (server_socket > 0)
-        StopServer(server_socket);
+        server_socket = StartServer(port);
 
-    server_socket = StartServer(port);
-
-    if (server_socket > 0)
-        printf("GDB server started on port %hu.\n", port);
-    else
-        fprintf(stderr, "Could not start GDB server\n");
+        if (server_socket > 0) {
+            printf("GDB server started on port %hu.\n", port);
+            if (queue_create())
+                fprintf(stderr, "could not create gdb stub internal queues\n");
+            else
+                start_thread();
+        }
+        else
+            fprintf(stderr, "could not start GDB server\n");
+    }
 }

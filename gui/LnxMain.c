@@ -321,6 +321,11 @@ int main(int argc, char *argv[]) {
 			SetIsoFile(isofilename);
 			runcd = RUN_CD;
 		}
+		else if (!strcmp(argv[i], "-gdb")) {
+			/* Force configuration. */
+			Config.Cpu = CPU_INTERPRETER;
+			Config.GdbServer = 1;
+		}
 		else if (!strcmp(argv[i], "-h") ||
 			 !strcmp(argv[i], "-help") ||
 			 !strcmp(argv[i], "--help")) {
@@ -460,6 +465,8 @@ int main(int argc, char *argv[]) {
 		autoloadCheats();
 		psxCpu->Execute();
 	}
+
+	if (Config.GdbServer) dbg_stop();
 
 	return 0;
 }

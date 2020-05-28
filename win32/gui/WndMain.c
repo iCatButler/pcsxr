@@ -238,6 +238,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	RunGui();
 
+	if (Config.GdbServer) dbg_stop();
+
 	return 0;
 }
 
@@ -1570,7 +1572,7 @@ BOOL CALLBACK ConfigureCpuDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lPar
 					}
 
 					if (Config.GdbServer) {
-						GdbStartServer();
+						dbg_start();
 					}
 
 					SaveConfig();
@@ -1996,8 +1998,7 @@ int SysInit() {
 	LoadMcds(Config.Mcd1, Config.Mcd2);
 
 	if (Config.Debug) StartDebugger();
-
-	if (Config.GdbServer) GdbStartServer();
+	else if (Config.GdbServer) dbg_start();
 
 	return 0;
 }

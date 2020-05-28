@@ -397,7 +397,7 @@ void DebugVSync() {
 
     if (client_socket < 1)
     {
-        client_socket = GetClient(server_socket);
+        client_socket = GetClient(server_socket, 0);
 
         if (client_socket > 0)
         {
@@ -478,7 +478,7 @@ void ProcessDebug() {
 
         if (client_socket < 1)
         {
-            client_socket = GetClient(server_socket);
+            client_socket = GetClient(server_socket, 0);
 
             if (client_socket > 0)
             {
