@@ -225,6 +225,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 			return 0;
 		}
+		else if (strcmp(arg, "-gdb") == 0) {
+			/* Force configuration. */
+			Config.Cpu = CPU_INTERPRETER;
+			Config.GdbServer = 1;
+			dbg_start();
+		}
 	}
 
 	if (SysInit() == -1) return 1;
