@@ -23,6 +23,7 @@
 #include "psxcommon.h"
 #include "ppf.h"
 #include "cdrom.h"
+#include <dynstr.h>
 
 typedef struct tagPPF_DATA {
 	s32					addr;
@@ -184,7 +185,7 @@ void BuildPPFCache() {
 	char			method, undo = 0, blockcheck = 0;
 	int				dizlen = 0, dizyn;
 	unsigned char	ppfmem[512];
-	char			szPPF[MAXPATHLEN];
+	struct dynstr 	szPPF;
 	int				count, seekpos, pos;
 	u32				anz; // use 32-bit to avoid stupid overflows
 	s32				ladr, off, anx;
@@ -207,9 +208,10 @@ void BuildPPFCache() {
 	buffer[10] = CdromId[8];
 	buffer[11] = '\0';
 
-	sprintf(szPPF, "%s/%s", Config.PatchesDir, buffer);
-
-	ppffile = fopen(szPPF, "rb");
+	dynstr_init(&szPPF);
+	dynstr_append(&szPPF, "%s/%s", Config.PatchesDir, buffer);
+	ppffile = fopen(szPPF.str, "rb");
+	dynstr_free(&szPPF);
 	if (ppffile == NULL) return;
 
 	memset(buffer, 0, 5);
@@ -297,7 +299,7 @@ void BuildPPFCache() {
 	}
 
 	// now do the data reading
-	do {                                                
+	do {
 		fseek(ppffile, seekpos, SEEK_SET);
 		fread(&pos, 4, 1, ppffile);
 		pos = SWAP32(pos);
@@ -305,7 +307,7 @@ void BuildPPFCache() {
 		if (method == 2) fread(buffer, 4, 1, ppffile); // skip 4 bytes on ppf3 (no int64 support here)
 
 		anz = fgetc(ppffile);
-		fread(ppfmem, anz, 1, ppffile);   
+		fread(ppfmem, anz, 1, ppffile);
 
 		ladr = pos / CD_FRAMESIZE_RAW;
 		off = pos % CD_FRAMESIZE_RAW;
@@ -391,8 +393,8 @@ boolean CheckSBI(const u8 *time) {
 
 	// both BCD format
 	for (lcv = 0; lcv < sbicount; lcv++) {
-		if (time[0] == sbitime[lcv][0] && 
-				time[1] == sbitime[lcv][1] && 
+		if (time[0] == sbitime[lcv][0] &&
+				time[1] == sbitime[lcv][1] &&
 				time[2] == sbitime[lcv][2])
 			return TRUE;
 	}

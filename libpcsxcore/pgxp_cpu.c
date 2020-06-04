@@ -14,12 +14,12 @@ PGXP_value* CPU_reg = CPU_reg_mem;
 PGXP_value* CP0_reg = CP0_reg_mem;
 
 // Instruction register decoding
-#define op(_instr)		(_instr >> 26)			// The op part of the instruction register 
-#define func(_instr)	((_instr) & 0x3F)		// The funct part of the instruction register 
+#define op(_instr)		(_instr >> 26)			// The op part of the instruction register
+#define func(_instr)	((_instr) & 0x3F)		// The funct part of the instruction register
 #define sa(_instr)		((_instr >>  6) & 0x1F) // The sa part of the instruction register
-#define rd(_instr)		((_instr >> 11) & 0x1F)	// The rd part of the instruction register 
-#define rt(_instr)		((_instr >> 16) & 0x1F)	// The rt part of the instruction register 
-#define rs(_instr)		((_instr >> 21) & 0x1F)	// The rs part of the instruction register 
+#define rd(_instr)		((_instr >> 11) & 0x1F)	// The rd part of the instruction register
+#define rt(_instr)		((_instr >> 16) & 0x1F)	// The rt part of the instruction register
+#define rs(_instr)		((_instr >> 21) & 0x1F)	// The rs part of the instruction register
 #define imm(_instr)		(_instr & 0xFFFF)		// The immediate part of the instruction register
 
 void PGXP_InitCPU()
@@ -31,7 +31,7 @@ void PGXP_InitCPU()
 // invalidate register (invalid 8 bit read)
 void InvalidLoad(u32 addr, u32 code, u32 value)
 {
-	u32 reg = ((code >> 16) & 0x1F); // The rt part of the instruction register 
+	u32 reg = ((code >> 16) & 0x1F); // The rt part of the instruction register
 	PGXP_value* pD = NULL;
 	PGXP_value p;
 
@@ -60,7 +60,7 @@ void InvalidLoad(u32 addr, u32 code, u32 value)
 // invalidate memory address (invalid 8 bit write)
 void InvalidStore(u32 addr, u32 code, u32 value)
 {
-	u32 reg = ((code >> 16) & 0x1F); // The rt part of the instruction register 
+	u32 reg = ((code >> 16) & 0x1F); // The rt part of the instruction register
 	PGXP_value* pD = NULL;
 	PGXP_value p;
 
@@ -86,7 +86,7 @@ void PGXP_CPU_ADDI(u32 instr, u32 rtVal, u32 rsVal)
 	// Rt = Rs + Imm (signed)
 	psx_value tempImm;
 	PGXP_value ret;
-	
+
 	Validate(&CPU_reg[rs(instr)], rsVal);
 	ret = CPU_reg[rs(instr)];
 	tempImm.d = imm(instr);
@@ -674,11 +674,11 @@ void PGXP_CPU_SLL(u32 instr, u32 rdVal, u32 rtVal)
 	PGXP_value ret;
 	u32 sh = sa(instr);
 	Validate(&CPU_reg[rt(instr)], rtVal);
-	
+
 	ret = CPU_reg[rt(instr)];
 
 	// TODO: Shift flags
-#if 1 
+#if 1
 	double x = f16Unsign(CPU_reg[rt(instr)].x);
 	double y = f16Unsign(CPU_reg[rt(instr)].y);
 	if (sh >= 32)
@@ -797,7 +797,7 @@ void PGXP_CPU_SRL(u32 instr, u32 rdVal, u32 rtVal)
 		else if ((valt.w.h & mask) == 0)
 			x = x;
 		else
-			x += y * (1 << (16 - sh));//f16Overflow(y);	
+			x += y * (1 << (16 - sh));//f16Overflow(y);
 
 		y = y / (1 << sh);
 		x = f16Sign(x);
@@ -882,7 +882,7 @@ void PGXP_CPU_SRA(u32 instr, u32 rdVal, u32 rtVal)
 	else
 	{
 		x = x / (1 << sh);
-		
+
 		// check for potential sign extension in overflow
 		psx_value valt;
 		valt.d = rtVal;
@@ -892,7 +892,7 @@ void PGXP_CPU_SRA(u32 instr, u32 rdVal, u32 rtVal)
 		else if ((valt.w.h & mask) == 0)
 			x = x;
 		else
-			x += y * (1 << (16 - sh));//f16Overflow(y);	
+			x += y * (1 << (16 - sh));//f16Overflow(y);
 
 		y = y / (1 << sh);
 		x = f16Sign(x);
@@ -1076,7 +1076,7 @@ void PGXP_CPU_SRLV(u32 instr, u32 rdVal, u32 rtVal, u32 rsVal)
 	else
 	{
 		x = x / (1 << sh);
-		
+
 		// check for potential sign extension in overflow
 		psx_value valt;
 		valt.d = rtVal;
@@ -1086,7 +1086,7 @@ void PGXP_CPU_SRLV(u32 instr, u32 rdVal, u32 rtVal, u32 rsVal)
 		else if ((valt.w.h & mask) == 0)
 			x = x;
 		else
-			x += y * (1 << (16 - sh));//f16Overflow(y);	
+			x += y * (1 << (16 - sh));//f16Overflow(y);
 
 		y = y / (1 << sh);
 		x = f16Sign(x);
@@ -1173,7 +1173,7 @@ void PGXP_CPU_SRAV(u32 instr, u32 rdVal, u32 rtVal, u32 rsVal)
 	else
 	{
 		x = x / (1 << sh);
-		
+
 		// check for potential sign extension in overflow
 		psx_value valt;
 		valt.d = rtVal;
@@ -1183,7 +1183,7 @@ void PGXP_CPU_SRAV(u32 instr, u32 rdVal, u32 rtVal, u32 rsVal)
 		else if ((valt.w.h & mask) == 0)
 			x = x;
 		else
-			x += y * (1 << (16 - sh));//f16Overflow(y);	
+			x += y * (1 << (16 - sh));//f16Overflow(y);
 
 		y = y / (1 << sh);
 		x = f16Sign(x);

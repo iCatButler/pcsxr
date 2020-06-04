@@ -160,7 +160,7 @@ void CALLBACK GPUpgxpCacheVertex(short sx, short sy, const unsigned char* _pVert
 				if ((fabsf(pOldVertex->x - pNewVertex->x) > 0.1f) ||
 					(fabsf(pOldVertex->y - pNewVertex->y) > 0.1f) ||
 					(fabsf(pOldVertex->z - pNewVertex->z) > 0.1f))
-				{			
+				{
 					pOldVertex->mFlags = 5;
 					return;
 				}
@@ -390,6 +390,11 @@ int PGXP_GetVertices(unsigned int* addr, void* pOutput, int xOffs, int yOffs)
 
 	// calculate offset to actual data
 	int offset = 0;
+
+	/* Dirty hack */
+	if (!pDMABlock)
+		return 0;
+
 	while ((pDMABlock[offset] != *addr) && (offset < blockSize))
 	{
 		unsigned char command = (unsigned char)((pDMABlock[offset] >> 24) & 0xff);
@@ -455,7 +460,7 @@ int PGXP_GetVertices(unsigned int* addr, void* pOutput, int xOffs, int yOffs)
 			}
 
 			// Log incorrect vertices
-			//if (PGXP_tDebug && 
+			//if (PGXP_tDebug &&
 			//	(fabs((float)pPrimData[stride * i * 2] - primStart[stride * i].x) > debug_tolerance) ||
 			//	(fabs((float)pPrimData[(stride * i * 2) + 1] - primStart[stride * i].y) > debug_tolerance))
 			//	__Log("GPPV: v:%x (%d, %d) pgxp(%f, %f)|\n", (currentAddr + offset + 1 + (i * stride)) * 4, pPrimData[stride * i * 2], pPrimData[(stride * i * 2) + 1], primStart[stride * i].x, primStart[stride * i].y);
@@ -527,7 +532,7 @@ enum PGXP_vDebugMode
 	vDEBUG_MAX,
 
 	vDEBUG_TEXCOORD,
-	vDEBUG_ID, 
+	vDEBUG_ID,
 };
 
 const char red[4]		= { 255, 0, 0, 255 };
@@ -569,7 +574,7 @@ void ColourFromRange(float val, float min, float max, GLubyte alpha, int wrap)
 	if (wrap)
 		val = fmod(val, 1);
 
-	if (0 <= val && val<= 1.f / 8.f) 
+	if (0 <= val && val<= 1.f / 8.f)
 	{
 		r = 0;
 		g = 0;
@@ -672,7 +677,7 @@ void PGXP_colour(OGLVertex* vertex, GLubyte alpha, int prim, int isTextured, int
 			glColor4ubv(vertex->c.col);
 			break;
 		}
-		
+
 		break;
 	case vDEBUG_TEXTURE:
 		// Texture only

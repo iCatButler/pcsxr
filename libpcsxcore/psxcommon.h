@@ -17,8 +17,8 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
  ***************************************************************************/
 
-/* 
-* This file contains common definitions and includes for all parts of the 
+/*
+* This file contains common definitions and includes for all parts of the
 * emulator core.
 */
 
@@ -172,6 +172,7 @@ typedef struct {
 	boolean PGXP_Cache;
 	boolean PGXP_Texture;
 	u32		PGXP_Mode;
+	boolean GdbServer;
 #ifdef _WIN32
 	char Lang[256];
 #endif

@@ -32,6 +32,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include "../libpcsxcore/sio.h"
+#include "../gdbstub/gdbstub_sys.h"
 
 #include "Linux.h"
 #include "ConfDlg.h"
@@ -320,6 +321,11 @@ int main(int argc, char *argv[]) {
 			SetIsoFile(isofilename);
 			runcd = RUN_CD;
 		}
+		else if (!strcmp(argv[i], "-gdb")) {
+			/* Force configuration. */
+			Config.Cpu = CPU_INTERPRETER;
+			Config.GdbServer = 1;
+		}
 		else if (!strcmp(argv[i], "-h") ||
 			 !strcmp(argv[i], "-help") ||
 			 !strcmp(argv[i], "--help")) {
@@ -443,7 +449,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		
+
 		if (loadst==0) {
 			loadst = UpdateMenuSlots() + 1;
 		}
@@ -459,6 +465,8 @@ int main(int argc, char *argv[]) {
 		autoloadCheats();
 		psxCpu->Execute();
 	}
+
+	if (Config.GdbServer) dbg_stop();
 
 	return 0;
 }
@@ -490,9 +498,10 @@ int SysInit() {
 
 	LoadMcds(Config.Mcd1, Config.Mcd2);	/* TODO Do we need to have this here, or in the calling main() function?? */
 
-	if (Config.Debug) {
+	if (Config.Debug)
 		StartDebugger();
-	}
+	else if (Config.GdbServer)
+		dbg_start();
 
 	return 0;
 }

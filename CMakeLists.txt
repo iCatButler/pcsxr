@@ -51,6 +51,5 @@ add_subdirectory(libpcsxcore)
 add_subdirectory(gui)
 add_subdirectory(plugins)
 add_subdirectory(doc)
-
-
-
+add_subdirectory(dynstr)
+add_subdirectory(gdbstub)
