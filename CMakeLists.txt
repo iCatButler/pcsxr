@@ -17,6 +17,8 @@ add_definitions(-DPACKAGE_NAME="PCSXr")
 add_definitions(-DPACKAGE_STRING="PCSXr ${PCSXR_VERSION_MAJOR}.${PCSXR_VERSION_MINOR}.${PCSXR_VERSION_PATCH}")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
+#uncomment for gdb server debugging
+#add_definitions(-DDEBUG=1)
 
 include(CheckCCompilerFlag)
 include(GNUInstallDirs)
