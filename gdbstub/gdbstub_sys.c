@@ -322,10 +322,15 @@ static void stop_thread(void)
 #ifdef _POSIX_VERSION
 void gdbstub_sys_recv(struct msg *msg)
 {
-    const ssize_t sz = mq_receive(out_queue, (char *)msg, sizeof *msg, 0);
+    while (out_queue <= 0)
+        ;
 
-    if (sz < 0)
-        perror("mq_receive");
+    {
+        const ssize_t sz = mq_receive(out_queue, (char *)msg, sizeof *msg, 0);
+
+        if (sz < 0)
+            perror("mq_receive");
+    }
 }
 #endif
 
