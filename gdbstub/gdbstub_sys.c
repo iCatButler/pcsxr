@@ -72,6 +72,8 @@ static void update_regs(struct dbg_state *const dbg_state)
 	dbg_state->registers[DBG_CPU_MIPS_I_REG_PC] = psxRegs.pc;
 }
 
+static int exit_loop;
+
 int dbg_sys_getc(void)
 {
     while (1) {
@@ -136,8 +138,11 @@ static int wait_hit_or_break(struct msg *msg)
 
             switch (err) {
                 case READ_SOCKET_OK:
-                    if (len && packet == 0x03)
-                        return 0;
+                    if (len && packet == 0x03) {
+                        DEBUG_PRINT("received break\n");
+                        psxCpu->Halt();
+                        return wait_hit_or_break(msg);
+                    }
 
                     break;
 
@@ -275,8 +280,6 @@ static int queue_create(void)
 }
 #endif
 
-static int exit_loop;
-
 static void *loop(void *const args)
 {
     struct dbg_state dbg_state = {0};
@@ -347,6 +350,16 @@ void dbg_stop(void)
 {
     exit_loop = 1;
     stop_thread();
+
+    if (client_socket > 0) {
+        StopServer(client_socket);
+        printf("Terminated active gdb connection\n");
+    }
+
+    if (server_socket > 0) {
+        StopServer(server_socket);
+        printf("Closed gdb server\n");
+    }
 }
 
 void dbg_start(void)

@@ -37,6 +37,7 @@ typedef struct {
 	void (*Clear)(u32 Addr, u32 Size);
 	void (*Shutdown)();
 	void (*SetPGXPMode)(u32 pgxpMode);
+	void (*Halt)(); /* stops CPU */
 } R3000Acpu;
 
 extern R3000Acpu *psxCpu;
@@ -291,11 +292,11 @@ static inline u32 *Read_ICache(u32 pc, boolean isolate) {
 /**** R3000A Instruction Macros ****/
 #define _PC_       psxRegs.pc       // The next PC to be executed
 
-#define _fOp_(code)		((code >> 26)       )  // The opcode part of the instruction register 
-#define _fFunct_(code)	((code      ) & 0x3F)  // The funct part of the instruction register 
-#define _fRd_(code)		((code >> 11) & 0x1F)  // The rd part of the instruction register 
-#define _fRt_(code)		((code >> 16) & 0x1F)  // The rt part of the instruction register 
-#define _fRs_(code)		((code >> 21) & 0x1F)  // The rs part of the instruction register 
+#define _fOp_(code)		((code >> 26)       )  // The opcode part of the instruction register
+#define _fFunct_(code)	((code      ) & 0x3F)  // The funct part of the instruction register
+#define _fRd_(code)		((code >> 11) & 0x1F)  // The rd part of the instruction register
+#define _fRt_(code)		((code >> 16) & 0x1F)  // The rt part of the instruction register
+#define _fRs_(code)		((code >> 21) & 0x1F)  // The rs part of the instruction register
 #define _fSa_(code)		((code >>  6) & 0x1F)  // The sa part of the instruction register
 #define _fIm_(code)		((u16)code)            // The immediate part of the instruction register
 #define _fTarget_(code)	(code & 0x03ffffff)    // The target part of the instruction register

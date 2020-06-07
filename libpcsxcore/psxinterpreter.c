@@ -1182,6 +1182,12 @@ static void intReset() {
 	psxRegs.ICache_valid = FALSE;
 }
 
+static int halt;
+
+static void intHalt() {
+	halt = 1;
+}
+
 static void intExecute() {
 	for (;;)
 		execI();
@@ -1207,7 +1213,7 @@ static void process_gdb(void) {
 	if (shutdown)
 		return;
 
-	if (step || (must_continue && tgt_addr && tgt_addr == psxRegs.pc)) {
+	if (halt || step || (must_continue && tgt_addr && tgt_addr == psxRegs.pc)) {
 		msg.type = MSG_TYPE_HIT;
 #if DEBUG == 1
 		printf("hit address 0x%08X\n", psxRegs.pc);
@@ -1215,6 +1221,7 @@ static void process_gdb(void) {
 		gdbstub_sys_send(&msg);
 		must_continue = 0;
 		step = 0;
+		halt = 0;
 	}
 
 	if (!must_continue) {
@@ -1283,5 +1290,6 @@ R3000Acpu psxInt = {
 	intExecuteBlock,
 	intClear,
 	intShutdown,
-	intSetPGXPMode
+	intSetPGXPMode,
+	intHalt
 };
