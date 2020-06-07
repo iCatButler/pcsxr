@@ -466,8 +466,6 @@ int main(int argc, char *argv[]) {
 		psxCpu->Execute();
 	}
 
-	if (Config.GdbServer) dbg_stop();
-
 	return 0;
 }
 
@@ -515,6 +513,7 @@ void SysClose() {
 	ReleasePlugins();
 
 	StopDebugger();
+	if (Config.GdbServer) dbg_stop();
 
 	if (emuLog != NULL) fclose(emuLog);
 }

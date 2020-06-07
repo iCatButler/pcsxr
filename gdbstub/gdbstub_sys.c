@@ -81,6 +81,11 @@ int dbg_sys_getc(void)
         size_t len = sizeof packet;
         const enum read_socket_err err = ReadSocket(client_socket, &packet, &len);
 
+#ifdef _POSIX_VERSION
+        if (exit_loop)
+            pthread_exit(NULL);
+#endif
+
         switch (err) {
             case READ_SOCKET_OK:
                 return packet;
@@ -129,6 +134,9 @@ static int wait_hit_or_break(struct msg *msg)
 {
     do {
         int ret = mq_receive(in_queue, (char *)msg, sizeof *msg, 0);
+
+        if (exit_loop)
+            return 1;
 
         if (ret < 0 && errno == EAGAIN) {
             /* Breakpoint has not been hit yet, look for incoming messages from gdb. */
@@ -213,6 +221,9 @@ static int wait_ack(struct msg *msg)
     int ret;
 
     do {
+        if (exit_loop)
+            return 1;
+
         ret = mq_receive(in_queue, (char *)msg, sizeof *msg, 0);
     } while (ret < 0 && errno == EAGAIN);
 

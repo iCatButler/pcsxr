@@ -244,8 +244,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	RunGui();
 
-	if (Config.GdbServer) dbg_stop();
-
 	return 0;
 }
 
@@ -2018,6 +2016,7 @@ void SysClose() {
 	ReleasePlugins();
 
 	StopDebugger();
+	if (Config.GdbServer) dbg_stop();
 
 	if (Config.PsxOut) CloseConsole();
 
