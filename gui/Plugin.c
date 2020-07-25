@@ -46,6 +46,7 @@ int StatesC = 0;
 unsigned char loadedOld = FALSE;
 int speed = 100;
 extern int UseGui;
+static unsigned int fpslimit = 1;
 
 void gpuShowPic() {
 	gchar *state_filename;
@@ -201,7 +202,10 @@ void PADhandleKey(int key) {
 			gpuShowPic();
 			break;
 		case XK_F4:
-			gpuShowPic();
+			fpslimit = !fpslimit;
+			sprintf(Text, "fpslimit: %u", fpslimit);
+			GPU_displayText(Text);
+			GPU_setframelimit(fpslimit);
 			break;
 		case XK_section:
 			if (pressed) break;
