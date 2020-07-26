@@ -37,6 +37,7 @@ extern void LidInterrupt();
 HANDLE hThread = 0;
 BOOL start = FALSE;
 BOOL restart = FALSE;
+int speed = 100;
 
 void gpuHidePic()
 {
@@ -145,7 +146,16 @@ void PADhandleKey(int key) {
 		break;
 
 	case VK_F4:
-		gpuShowPic();
+		if (speed == 200) {
+			speed = 100;
+		}
+		else {
+			speed = 200;
+		}
+		sprintf(Text, "Speed: %u", speed);
+		GPU_displayText(Text);
+//		GPU_setSpeed(speed / 100.0);
+		GPU_setframelimit(speed == 100);
 		break;
 
 	case VK_F5:
