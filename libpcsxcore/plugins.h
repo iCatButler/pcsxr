@@ -98,6 +98,7 @@ typedef void (CALLBACK* GPUvisualVibration)(uint32_t, uint32_t);
 typedef void (CALLBACK* GPUcursor)(int, int, int);
 typedef void (CALLBACK* GPUaddVertex)(short,short,s64,s64,s64);
 typedef void (CALLBACK* GPUsetSpeed)(float); // 1.0 = natural speed
+typedef void (CALLBACK* GPUsetframelimit)(unsigned long);
 typedef void (CALLBACK* GPUpgxpMemory)(unsigned int, unsigned char*);
 typedef void (CALLBACK* GPUpgxpCacheVertex)(short sx, short sy, const unsigned char* _pVertex);
 
@@ -131,6 +132,7 @@ extern GPUvisualVibration GPU_visualVibration;
 extern GPUcursor        GPU_cursor;
 extern GPUaddVertex     GPU_addVertex;
 extern GPUsetSpeed		GPU_setSpeed;
+extern GPUsetframelimit GPU_setframelimit;
 extern GPUpgxpMemory	GPU_pgxpMemory;
 extern GPUpgxpCacheVertex GPU_pgxpCacheVertex;
 

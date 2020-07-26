@@ -59,6 +59,7 @@ GPUvisualVibration    GPU_visualVibration;
 GPUcursor             GPU_cursor;
 GPUaddVertex          GPU_addVertex;
 GPUsetSpeed           GPU_setSpeed;
+GPUsetframelimit      GPU_setframelimit;
 GPUpgxpMemory		  GPU_pgxpMemory;
 GPUpgxpCacheVertex	  GPU_pgxpCacheVertex;
 
@@ -223,6 +224,7 @@ void CALLBACK GPU__visualVibration(unsigned long iSmall, unsigned long iBig) {}
 void CALLBACK GPU__cursor(int player, int x, int y) {}
 void CALLBACK GPU__addVertex(short sx,short sy,s64 fx,s64 fy,s64 fz) {}
 void CALLBACK GPU__setSpeed(float newSpeed) {}
+void CALLBACK GPU__setframelimit(unsigned long option) {}
 void CALLBACK GPU__pgxpMemory(unsigned int addr, unsigned char* pVRAM) {}
 void CALLBACK GPU__pgxpCacheVertex(short sx, short sy, const unsigned char* _pVertex) {}
 
@@ -272,6 +274,7 @@ static int LoadGPUplugin(const char *GPUdll) {
     LoadGpuSym0(cursor, "GPUcursor");
 	LoadGpuSym0(addVertex, "GPUaddVertex");
 	LoadGpuSym0(setSpeed, "GPUsetSpeed");
+	LoadGpuSym0(setframelimit, "GPUsetframelimit");
 	LoadGpuSym0(pgxpMemory, "GPUpgxpMemory");
 	LoadGpuSym0(pgxpCacheVertex, "GPUpgxpCacheVertex");
 	LoadGpuSym0(configure, "GPUconfigure");
