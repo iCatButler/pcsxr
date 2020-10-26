@@ -79,35 +79,39 @@ int dbg_sys_getc(void)
     while (1) {
         char packet;
         size_t len = sizeof packet;
-        const enum read_socket_err err = ReadSocket(client_socket, &packet, &len);
+        SetsBlock(client_socket);
+        {
+            const enum read_socket_err err = ReadSocket(client_socket, &packet, &len);
 
 #ifdef _POSIX_VERSION
-        if (exit_loop)
-            pthread_exit(NULL);
+            if (exit_loop)
+                pthread_exit(NULL);
 #endif
 
-        switch (err) {
-            case READ_SOCKET_OK:
-                return packet;
+            switch (err) {
+                case READ_SOCKET_OK:
+                    return packet;
 
-            case READ_SOCKET_SHUTDOWN: {
-                struct msg msg;
+                case READ_SOCKET_SHUTDOWN: {
+                    struct msg msg;
 
-                printf("gdb shutdown\n");
-                client_socket = 0;
-                msg.type = MSG_TYPE_SHUTDOWN;
+                    printf("gdb shutdown\n");
+                    client_socket = 0;
+                    msg.type = MSG_TYPE_SHUTDOWN;
 
-                    if (mq_send(out_queue, (const char *)&msg, sizeof msg, 0))
-                        perror("dbg_sys_getc() mq_send()");
-                return EOF;
+                        if (mq_send(out_queue, (const char *)&msg, sizeof msg, 0))
+                            perror("dbg_sys_getc() mq_send()");
+                    return EOF;
+                }
+
+                case READ_SOCKET_ERR_RECV:
+                    SetsBlock(client_socket);
+                    /* Fall through. */
+                case READ_SOCKET_ERR_INVALID_ARG:
+                    /* Fall through. */
+                default:
+                    break;
             }
-
-            case READ_SOCKET_ERR_INVALID_ARG:
-                /* Fall through. */
-            case READ_SOCKET_ERR_RECV:
-                /* Fall through. */
-            default:
-                break;
         }
     }
 }
@@ -137,6 +141,8 @@ static int wait_hit_or_break(struct msg *msg)
 
         if (exit_loop)
             return 1;
+
+        SetsNonblock(client_socket);
 
         if (ret < 0 && errno == EAGAIN) {
             /* Breakpoint has not been hit yet, look for incoming messages from gdb. */
