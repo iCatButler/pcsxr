@@ -14,10 +14,10 @@
 #include <errno.h>
 
 static pthread_t thread;
-static mqd_t in_queue, out_queue;
+static mqd_t in_queue = -1, out_queue = -1;
 #endif
 
-static int server_socket, client_socket;
+static int server_socket = -1, client_socket = -1;
 static enum {
     PAUSED,
 } state;
@@ -336,7 +336,7 @@ static void stop_thread(void)
 #ifdef _POSIX_VERSION
 void gdbstub_sys_recv(struct msg *msg)
 {
-    while (out_queue <= 0)
+    while (out_queue < 0)
         ;
 
     {
