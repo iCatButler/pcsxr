@@ -1210,6 +1210,8 @@ static void process_gdb(void) {
 	static int step, must_continue;
 	struct msg msg;
 
+start:
+
 	if (shutdown)
 		return;
 
@@ -1243,8 +1245,8 @@ static void process_gdb(void) {
 				out.type = MSG_TYPE_ACK;
 
 				gdbstub_sys_send(&out);
+				goto start;
 			}
-				break;
 
 			case MSG_TYPE_BREAKPOINT: {
 				struct msg out;
@@ -1253,8 +1255,8 @@ static void process_gdb(void) {
 				out.type = MSG_TYPE_ACK;
 
 				gdbstub_sys_send(&out);
+				goto start;
 			}
-				break;
 
 			case MSG_TYPE_SHUTDOWN:
 				shutdown = 1;
