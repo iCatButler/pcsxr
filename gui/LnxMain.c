@@ -341,6 +341,7 @@ int main(int argc, char *argv[]) {
 							"\t-psxout\t\tEnable PSX output\n"
 							"\t-slowboot\tEnable BIOS Logo\n"
 							"\t-load STATENUM\tLoads savestate STATENUM (1-9)\n"
+							"\t-gdb\t\tStarts GDB server on port 3333\n"
 							"\t-h -help\tDisplay this message\n"
 							"\tfile\t\tLoads file\n"));
 			 return 0;
