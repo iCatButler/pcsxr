@@ -325,6 +325,7 @@ int main(int argc, char *argv[]) {
 			/* Force configuration. */
 			Config.Cpu = CPU_INTERPRETER;
 			Config.GdbServer = 1;
+			Config.Debug = 0;
 		}
 		else if (!strcmp(argv[i], "-h") ||
 			 !strcmp(argv[i], "-help") ||
