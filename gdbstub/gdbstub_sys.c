@@ -291,7 +291,7 @@ int dbg_sys_del_breakpoint(address addr)
     msg.type = MSG_TYPE_REMOVE_BREAKPOINT;
 
     if (mq_send(out_queue, (const char *)&msg, sizeof msg, 0)) {
-        perror("dbg_sys_breakpoint(): mq_send()");
+        perror("dbg_sys_del_breakpoint(): mq_send()");
     }
 
     return wait_ack(&msg);
