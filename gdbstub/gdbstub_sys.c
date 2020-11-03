@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/select.h>
 #include <mqueue.h>
 #include <errno.h>
 
@@ -142,10 +143,27 @@ static int wait_hit_or_break(struct msg *msg)
         if (exit_loop)
             return 1;
 
-        SetsNonblock(client_socket);
-
         if (ret < 0 && errno == EAGAIN) {
             /* Breakpoint has not been hit yet, look for incoming messages from gdb. */
+            SetsNonblock(client_socket);
+
+            {
+                const int fd = in_queue > client_socket ? in_queue : client_socket;
+                fd_set set;
+
+                FD_ZERO(&set);
+                FD_SET(in_queue, &set);
+                FD_SET(client_socket, &set);
+
+                /* Warning: mqd_t are file descriptors in Linux and hence
+                 * can be used with select(), but this is not portable. */
+                if (select(fd + 1, &set, NULL, NULL, NULL) < 0)
+                {
+                    perror("wait_hit_or_break: select");
+                    return EOF;
+                }
+            }
+
             char packet;
             size_t len = sizeof packet;
             const enum read_socket_err err = ReadSocket(client_socket, &packet, &len);
