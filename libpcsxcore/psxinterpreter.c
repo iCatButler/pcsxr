@@ -655,8 +655,10 @@ void psxMTLO() { _rLo_ = _rRs_; } // Lo = Rs
 * Special purpose instructions                           *
 * Format:  OP                                            *
 *********************************************************/
+static void process_gdb(int);
 void psxBREAK() {
 	// Break exception - psx rom doens't handles this
+	if (Config.GdbServer) process_gdb(1);
 }
 
 void psxSYSCALL() {
@@ -1204,7 +1206,7 @@ static void intClear(u32 Addr, u32 Size) {
 static void intShutdown() {
 }
 
-static void process_gdb(void) {
+static void process_gdb(int found_break) {
 	static int shutdown;
 	static u32 tgt_addr;
 	static int step, must_continue;
@@ -1215,7 +1217,14 @@ start:
 	if (shutdown)
 		return;
 
-	if (halt || step || (must_continue && tgt_addr && tgt_addr == psxRegs.pc)) {
+	if (found_break) {
+		msg.type = MSG_TYPE_BREAK;
+		gdbstub_sys_send(&msg);
+		must_continue = 0;
+		step = 0;
+		halt = 0;
+	}
+	else if (halt || step || (must_continue && tgt_addr && tgt_addr == psxRegs.pc)) {
 		msg.type = MSG_TYPE_HIT;
 #if DEBUG == 1
 		printf("hit address 0x%08X\n", psxRegs.pc);
@@ -1276,7 +1285,7 @@ static inline void execI() {
 
 	debugI();
 
-	if (Config.GdbServer) process_gdb();
+	if (Config.GdbServer) process_gdb(0);
 	else if (Config.Debug) ProcessDebug();
 
 	psxRegs.pc += 4;

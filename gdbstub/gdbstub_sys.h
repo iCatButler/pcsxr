@@ -66,7 +66,8 @@ struct msg {
 		MSG_TYPE_SHUTDOWN,
 
 		/* Response frames. */
-		MSG_TYPE_HIT
+		MSG_TYPE_HIT,
+		MSG_TYPE_BREAK,
 	} type;
 
 	union {

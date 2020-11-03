@@ -196,15 +196,22 @@ static int wait_hit_or_break(struct msg *msg)
                     break;
             }
         }
-        else if (msg->type != MSG_TYPE_HIT) {
-            fprintf(stderr, "unexpected msg.type %d\n", msg->type);
-            return 1;
+        else {
+            switch (msg->type) {
+                case MSG_TYPE_BREAK:
+                    return 1;
+                case MSG_TYPE_HIT:
+                    return 0;
+
+                default:
+                    fprintf(stderr, "%s:%d:unexpected msg.type %d\n",
+                        __func__, __LINE__, msg->type);
+                    return EOF;
+            }
         }
-        else
-            return 0;
     } while (1);
 
-    return 1;
+    return EOF;
 }
 #endif
 
