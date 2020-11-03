@@ -68,11 +68,15 @@ int StartServer(unsigned short port) {
     localsocketaddr.sin_addr = localhostaddr;
     localsocketaddr.sin_port = htons(port);
 
-    if (bind(ret, (struct sockaddr *) &localsocketaddr, sizeof(localsocketaddr)) < 0)
+    if (bind(ret, (const struct sockaddr *) &localsocketaddr, sizeof(localsocketaddr)) < 0) {
+        perror("gdbserver bind() failed");
         return -1;
+    }
 
-    if (listen(ret, 1) != 0)
+    if (listen(ret, 1)) {
+        perror("gdbserver listen() failed");
         return -1;
+    }
 
     return ret;
 }
