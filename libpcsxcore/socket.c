@@ -219,7 +219,7 @@ enum read_socket_err ReadSocket(int client_socket, char *buf, size_t *const len)
 #endif
 }
 
-int RawReadSocket(int client_socket, char *buffer, size_t len) {
+int RawReadSocket(int client_socket, char *buf, size_t len) {
 #if 0
     int r = 0;
     int mlen = len < ptr ? len : ptr;
@@ -254,6 +254,9 @@ int RawReadSocket(int client_socket, char *buffer, size_t len) {
     r += mlen;
 
     return r;
+#else
+#warning please check
+    return ReadSocket(client_socket, buf, &len);
 #endif
 }
 
