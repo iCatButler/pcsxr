@@ -180,7 +180,7 @@ static enum read_socket_err ReadSocketOS(int client_socket, char *buf, size_t *c
 enum read_socket_err ReadSocket(int client_socket, char *buf, size_t *const len) {
     char * endl;
 
-    if (!client_socket || !buf || !len || !*len)
+    if (client_socket < 0 || !buf || !len || !*len)
         return READ_SOCKET_ERR_INVALID_ARG;
 
     return ReadSocketOS(client_socket, buf, len);

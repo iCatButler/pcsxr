@@ -367,9 +367,7 @@ static void stop_thread(void)
 #ifdef _POSIX_VERSION
 void gdbstub_sys_recv(struct msg *msg)
 {
-    while (out_queue < 0)
-        ;
-
+    if (out_queue >= 0)
     {
         const ssize_t sz = mq_receive(out_queue, (char *)msg, sizeof *msg, 0);
 
@@ -406,7 +404,7 @@ void dbg_stop(void)
 
 void dbg_start(void)
 {
-    if (server_socket > 0) {
+    if (server_socket >= 0) {
         fprintf(stderr, "gdb server already started\n");
         return;
     }
@@ -415,7 +413,7 @@ void dbg_start(void)
 
         server_socket = StartServer(port);
 
-        if (server_socket > 0) {
+        if (server_socket >= 0) {
             printf("GDB server started on port %hu.\n", port);
             if (queue_create())
                 fprintf(stderr, "could not create gdb stub internal queues\n");
