@@ -415,12 +415,16 @@ void dbg_start(void)
 
         if (server_socket >= 0) {
             printf("GDB server started on port %hu.\n", port);
-            if (queue_create())
+            if (queue_create()) {
                 fprintf(stderr, "could not create gdb stub internal queues\n");
+                Config.GdbServer = 0;
+            }
             else
                 start_thread();
         }
-        else
+        else {
             fprintf(stderr, "could not start GDB server\n");
+            Config.GdbServer = 0;
+        }
     }
 }
