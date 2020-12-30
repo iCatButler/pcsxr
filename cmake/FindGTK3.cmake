@@ -35,7 +35,8 @@ set(GTK3_DEPS
   GDK3
   Pango
   Cairo
-  GDKPixbuf)
+  GDKPixbuf
+  Harfbuzz)
 
 if(PKG_CONFIG_FOUND)
   pkg_search_module(GTK3_PKG QUIET gtk+-3.0)

@@ -32,6 +32,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include "../libpcsxcore/sio.h"
+#include "../gdbstub/gdbstub_sys.h"
 
 #include "Linux.h"
 #include "ConfDlg.h"
@@ -320,6 +321,12 @@ int main(int argc, char *argv[]) {
 			SetIsoFile(isofilename);
 			runcd = RUN_CD;
 		}
+		else if (!strcmp(argv[i], "-gdb")) {
+			/* Force configuration. */
+			Config.Cpu = CPU_INTERPRETER;
+			Config.GdbServer = 1;
+			Config.Debug = 0;
+		}
 		else if (!strcmp(argv[i], "-h") ||
 			 !strcmp(argv[i], "-help") ||
 			 !strcmp(argv[i], "--help")) {
@@ -334,6 +341,7 @@ int main(int argc, char *argv[]) {
 							"\t-psxout\t\tEnable PSX output\n"
 							"\t-slowboot\tEnable BIOS Logo\n"
 							"\t-load STATENUM\tLoads savestate STATENUM (1-9)\n"
+							"\t-gdb\t\tStarts GDB server on port 3333\n"
 							"\t-h -help\tDisplay this message\n"
 							"\tfile\t\tLoads file\n"));
 			 return 0;
@@ -443,7 +451,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		
+
 		if (loadst==0) {
 			loadst = UpdateMenuSlots() + 1;
 		}
@@ -490,9 +498,10 @@ int SysInit() {
 
 	LoadMcds(Config.Mcd1, Config.Mcd2);	/* TODO Do we need to have this here, or in the calling main() function?? */
 
-	if (Config.Debug) {
+	if (Config.Debug)
 		StartDebugger();
-	}
+	else if (Config.GdbServer)
+		dbg_start();
 
 	return 0;
 }
@@ -506,6 +515,7 @@ void SysClose() {
 	ReleasePlugins();
 
 	StopDebugger();
+	if (Config.GdbServer) dbg_stop();
 
 	if (emuLog != NULL) fclose(emuLog);
 }

@@ -323,7 +323,7 @@ void psxRcntUpdate()
         }
     }
 
-    DebugVSync();
+    if (Config.Debug) DebugVSync();
 }
 
 /******************************************************************************/

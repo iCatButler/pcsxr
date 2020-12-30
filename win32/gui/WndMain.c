@@ -225,6 +225,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 			return 0;
 		}
+		else if (strcmp(arg, "-gdb") == 0) {
+			/* Force configuration. */
+			Config.Cpu = CPU_INTERPRETER;
+			Config.GdbServer = 1;
+			dbg_start();
+		}
 	}
 
 	if (SysInit() == -1) return 1;
@@ -261,10 +267,10 @@ void RestoreWindow() {
 	AccBreak = 1;
 	DestroyWindow(gApp.hWnd);
 	CreateMainWindow(SW_SHOWNORMAL);
-	
+
 	if(Config.HideCursor)
 		ShowCursor(TRUE);
-	
+
 	//SetCursor(LoadCursor(gApp.hInstance, IDC_ARROW));
 	//ShowCursor(TRUE);
 
@@ -279,7 +285,7 @@ void ResetMenuSlots() {
 		GetStateFilename(str, i);
 		if (CheckState(str) == -1)
 			EnableMenuItem(gApp.hMenu, ID_FILE_STATES_LOAD_SLOT1+i, MF_GRAYED);
-		else 
+		else
 			EnableMenuItem(gApp.hMenu, ID_FILE_STATES_LOAD_SLOT1+i, MF_ENABLED);
 	}
 }
@@ -382,7 +388,7 @@ void OnStates_LoadOther() {
 		Running = 1;
 		psxCpu->Execute();
 	}
-} 
+}
 
 void OnStates_SaveOther() {
 	OPENFILENAME ofn;
@@ -428,7 +434,7 @@ void OnStates_SaveOther() {
 		Running = 1;
 		psxCpu->Execute();
 	}
-} 
+}
 
 LRESULT WINAPI MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	char File[256];
@@ -475,7 +481,7 @@ LRESULT WINAPI MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 						SysMessage(_("The CD does not appear to be a valid Playstation CD"));
 						return TRUE;
 					}
-					
+
 					// Auto-detect: region first, then rcnt reset
 					SysReset();
 
@@ -532,7 +538,7 @@ LRESULT WINAPI MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 					// Auto-detect: region first, then rcnt reset
 					SysReset();
-					
+
 					if (LoadCdrom() == -1) {
 						ClosePlugins();
 						RestoreWindow();
@@ -559,7 +565,7 @@ LRESULT WINAPI MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 					// Auto-detect: region first, then rcnt reset
 					SysReset();
-					
+
 					Load(File);
 					Running = 1;
 					psxCpu->Execute();
@@ -604,7 +610,7 @@ LRESULT WINAPI MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 					// Auto-detect: region first, then rcnt reset
 					SysReset();
-					
+
 					if (LoadCdrom() == -1) {
 						fprintf(stderr, _("Could not load CD-ROM!"));
 						ClosePlugins();
@@ -634,7 +640,7 @@ LRESULT WINAPI MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 					// Auto-detect: region first, then rcnt reset
 					SysReset();
-					
+
 					LoadCdrom();
 					if(Config.HideCursor)
 						ShowCursor(FALSE);
@@ -820,48 +826,48 @@ void CreateListView(int idc) {
 
 int GetRGB() {
     HDC scrDC, memDC;
-    HBITMAP oldBmp = NULL; 
+    HBITMAP oldBmp = NULL;
     HBITMAP curBmp = NULL;
     COLORREF oldColor;
     COLORREF curColor = RGB(255,255,255);
     int i, R, G, B;
 
     R = G = B = 1;
- 
+
     scrDC = CreateDC("DISPLAY", NULL, NULL, NULL);
-    memDC = CreateCompatibleDC(NULL); 
-    curBmp = CreateCompatibleBitmap(scrDC, 1, 1);    
+    memDC = CreateCompatibleDC(NULL);
+    curBmp = CreateCompatibleBitmap(scrDC, 1, 1);
     oldBmp = (HBITMAP)SelectObject(memDC, curBmp);
-        
+
     for (i = 255; i >= 0; --i) {
         oldColor = curColor;
         curColor = SetPixel(memDC, 0, 0, RGB(i, i, i));
- 
-        if (GetRValue(curColor) < GetRValue(oldColor)) ++R; 
+
+        if (GetRValue(curColor) < GetRValue(oldColor)) ++R;
         if (GetGValue(curColor) < GetGValue(oldColor)) ++G;
         if (GetBValue(curColor) < GetBValue(oldColor)) ++B;
     }
- 
+
     DeleteObject(oldBmp);
     DeleteObject(curBmp);
     DeleteDC(scrDC);
     DeleteDC(memDC);
- 
+
     return (R * G * B);
 }
- 
+
 HICON GetIcon(short *icon) {
     ICONINFO iInfo;
     HDC hDC;
     char mask[16*16];
     int x, y, c, Depth;
-  
+
     hDC = CreateIC("DISPLAY",NULL,NULL,NULL);
     Depth=GetDeviceCaps(hDC, BITSPIXEL);
     DeleteDC(hDC);
- 
+
     if (Depth == 16) {
-        if (GetRGB() == (32 * 32 * 32))        
+        if (GetRGB() == (32 * 32 * 32))
             Depth = 15;
     }
 
@@ -869,8 +875,8 @@ HICON GetIcon(short *icon) {
         for (x=0; x<16; x++) {
             c = icon[y*16+x];
             if (Depth == 15 || Depth == 32)
-				c = ((c&0x001f) << 10) | 
-					((c&0x7c00) >> 10) | 
+				c = ((c&0x001f) << 10) |
+					((c&0x7c00) >> 10) |
 					((c&0x03e0)      );
 			else
                 c = ((c&0x001f) << 11) |
@@ -879,20 +885,20 @@ HICON GetIcon(short *icon) {
 
             icon[y*16+x] = c;
         }
-    }    
+    }
 
     iInfo.fIcon = TRUE;
     memset(mask, 0, 16*16);
     iInfo.hbmMask  = CreateBitmap(16, 16, 1, 1, mask);
-    iInfo.hbmColor = CreateBitmap(16, 16, 1, 16, icon); 
- 
+    iInfo.hbmColor = CreateBitmap(16, 16, 1, 16, icon);
+
     return CreateIconIndirect(&iInfo);
 }
 
 HICON hICON[2][3][15];
-int aIover[2];                        
+int aIover[2];
 int ani[2];
- 
+
 void LoadMcdItems(int mcd, int idc) {
     HWND List = GetDlgItem(mcdDlg, idc);
     LV_ITEM item;
@@ -900,37 +906,37 @@ void LoadMcdItems(int mcd, int idc) {
     int i, j;
     HICON hIcon;
     McdBlock *Info;
- 
+
     aIover[mcd-1]=0;
     ani[mcd-1]=0;
- 
+
     ListView_DeleteAllItems(List);
 
     for (i=0; i<15; i++) {
-  
+
         item.mask      = LVIF_TEXT | LVIF_IMAGE;
         item.iItem       = i;
         item.iImage    = i;
         item.pszText  = LPSTR_TEXTCALLBACK;
         item.iSubItem = 0;
- 
+
         IconC[mcd-1][i] = 0;
         Info = &Blocks[mcd-1][i];
- 
+
         if ((Info->Flags & 0xF) == 1 && Info->IconCount != 0) {
-            hIcon = GetIcon(Info->Icon);   
- 
+            hIcon = GetIcon(Info->Icon);
+
             if (Info->IconCount > 1) {
                 for(j = 0; j < 3; j++)
                     hICON[mcd-1][j][i]=hIcon;
             }
         } else {
-            hIcon = eICON; 
+            hIcon = eICON;
         }
- 
+
         ImageList_ReplaceIcon(iml, -1, hIcon);
         ListView_InsertItem(List, &item);
-    } 
+    }
 }
 
 void UpdateMcdItems(int mcd, int idc) {
@@ -940,38 +946,38 @@ void UpdateMcdItems(int mcd, int idc) {
     int i, j;
     McdBlock *Info;
     HICON hIcon;
- 
+
     aIover[mcd-1]=0;
     ani[mcd-1]=0;
-  
-    for (i=0; i<15; i++) { 
- 
+
+    for (i=0; i<15; i++) {
+
         item.mask     = LVIF_TEXT | LVIF_IMAGE;
         item.iItem    = i;
         item.iImage   = i;
         item.pszText  = LPSTR_TEXTCALLBACK;
         item.iSubItem = 0;
- 
-        IconC[mcd-1][i] = 0; 
+
+        IconC[mcd-1][i] = 0;
         Info = &Blocks[mcd-1][i];
- 
+
         if ((Info->Flags & 0xF) == 1 && Info->IconCount != 0) {
-            hIcon = GetIcon(Info->Icon);   
- 
-            if (Info->IconCount > 1) { 
+            hIcon = GetIcon(Info->Icon);
+
+            if (Info->IconCount > 1) {
                 for(j = 0; j < 3; j++)
                     hICON[mcd-1][j][i]=hIcon;
             }
-        } else { 
-            hIcon = eICON; 
+        } else {
+            hIcon = eICON;
         }
-              
+
         ImageList_ReplaceIcon(iml, i, hIcon);
         ListView_SetItem(List, &item);
-    } 
+    }
     ListView_Update(List, -1);
 }
- 
+
 void McdListGetDispInfo(int mcd, int idc, LPNMHDR pnmh) {
 	LV_DISPINFO *lpdi = (LV_DISPINFO *)pnmh;
 	McdBlock *Info;
@@ -1050,22 +1056,22 @@ void UpdateMcdIcon(int mcd, int idc) {
     HIMAGELIST iml = Iiml[mcd-1];
     int i;
     McdBlock *Info;
-    int *count; 
- 
+    int *count;
+
     if(!aIover[mcd-1]) {
-        ani[mcd-1]++; 
- 
+        ani[mcd-1]++;
+
         for (i=0; i<15; i++) {
             Info = &Blocks[mcd-1][i];
             count = &IconC[mcd-1][i];
- 
+
             if ((Info->Flags & 0xF) != 1) continue;
             if (Info->IconCount <= 1) continue;
- 
+
             if (*count < Info->IconCount) {
                 (*count)++;
                 aIover[mcd-1]=0;
- 
+
                 if(ani[mcd-1] <= (Info->IconCount-1))  // last frame and below...
                     hICON[mcd-1][ani[mcd-1]][i] = GetIcon(&Info->Icon[(*count)*16*16]);
             } else {
@@ -1073,14 +1079,14 @@ void UpdateMcdIcon(int mcd, int idc) {
             }
         }
 
-    } else { 
- 
+    } else {
+
         if (ani[mcd-1] > 1) ani[mcd-1] = 0;  // 1st frame
         else ani[mcd-1]++;                       // 2nd, 3rd frame
- 
+
         for(i=0;i<15;i++) {
             Info = &Blocks[mcd-1][i];
- 
+
             if (((Info->Flags & 0xF) == 1) && (Info->IconCount > 1))
                 ImageList_ReplaceIcon(iml, i, hICON[mcd-1][ani[mcd-1]][i]);
         }
@@ -1116,7 +1122,7 @@ BOOL CALLBACK ConfigureMcdsDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lPa
 			Button_SetText(GetDlgItem(hW, IDC_PASTE),   _("Paste"));
 			Button_SetText(GetDlgItem(hW, IDC_DELETE1), _("<- Un/Delete"));
 			Button_SetText(GetDlgItem(hW, IDC_DELETE2), _("Un/Delete ->"));
- 
+
 			Static_SetText(GetDlgItem(hW, IDC_FRAMEMCD1), _("Memory Card 1"));
 			Static_SetText(GetDlgItem(hW, IDC_FRAMEMCD2), _("Memory Card 2"));
 
@@ -1143,10 +1149,10 @@ BOOL CALLBACK ConfigureMcdsDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 			CreateListView(IDC_LIST1);
 			CreateListView(IDC_LIST2);
- 
+
             Iiml[0] = ImageList_Create(16, 16, ILC_COLOR16, 0, 0);
             Iiml[1] = ImageList_Create(16, 16, ILC_COLOR16, 0, 0);
- 
+
             ListView_SetImageList(GetDlgItem(mcdDlg, IDC_LIST1), Iiml[0], LVSIL_SMALL);
             ListView_SetImageList(GetDlgItem(mcdDlg, IDC_LIST2), Iiml[1], LVSIL_SMALL);
 
@@ -1274,18 +1280,18 @@ BOOL CALLBACK ConfigureMcdsDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 					return TRUE;
 
-				case IDC_MCDSEL1: 
-					Open_Mcd_Proc(hW, 1); 
+				case IDC_MCDSEL1:
+					Open_Mcd_Proc(hW, 1);
 					return TRUE;
-				case IDC_MCDSEL2: 
-					Open_Mcd_Proc(hW, 2); 
+				case IDC_MCDSEL2:
+					Open_Mcd_Proc(hW, 2);
 					return TRUE;
-				case IDC_RELOAD1: 
+				case IDC_RELOAD1:
 					Edit_GetText(GetDlgItem(hW,IDC_MCD1), str, 256);
 					LoadMcd(1, str);
 					UpdateMcdDlg();
 					return TRUE;
-				case IDC_RELOAD2: 
+				case IDC_RELOAD2:
 					Edit_GetText(GetDlgItem(hW,IDC_MCD2), str, 256);
 					LoadMcd(2, str);
 					UpdateMcdDlg();
@@ -1340,12 +1346,12 @@ BOOL CALLBACK ConfigureMcdsDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lPa
 }
 
 
-BOOL CALLBACK ConfigurePGXPDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lParam) 
+BOOL CALLBACK ConfigurePGXPDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	long tmp;
 	RECT rect;
 
-	switch (uMsg) 
+	switch (uMsg)
 	{
 	case WM_INITDIALOG:
 		SetWindowText(hW, _("PGXP Config"));
@@ -1374,7 +1380,7 @@ BOOL CALLBACK ConfigurePGXPDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lPa
 			Static_SetText(GetDlgItem(hW, IDC_PGXP_MODETEXT), _("Error: Uknown mode"));
 		}
 
-	case WM_COMMAND: 
+	case WM_COMMAND:
 		switch (LOWORD(wParam))
 		{
 		case IDCANCEL:
@@ -1423,7 +1429,7 @@ BOOL CALLBACK ConfigurePGXPDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lPa
 			return TRUE;
 		}
 	}
-	
+
 	return FALSE;
 }
 
@@ -1506,7 +1512,7 @@ BOOL CALLBACK ConfigureCpuDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lPar
 
 			if (Config.OverClock)
 				EnableWindow(GetDlgItem(hW, IDC_PSXCLOCK), TRUE);
-			else 
+			else
 				EnableWindow(GetDlgItem(hW, IDC_PSXCLOCK), FALSE);
 			break;
 
@@ -1569,6 +1575,10 @@ BOOL CALLBACK ConfigureCpuDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lPar
 						else StopDebugger();
 					}
 
+					if (Config.GdbServer) {
+						dbg_start();
+					}
+
 					SaveConfig();
 
 					EndDialog(hW,TRUE);
@@ -1619,7 +1629,7 @@ void Open_Mcd_Proc(HWND hW, int mcd) {
 	memset(&szFilter,    0, sizeof(szFilter));
 
 	strcpy(szFilter, _("Psx Mcd Format (*.mcr;*.mc;*.mem;*.vgs;*.mcd;*.gme;*.ddf)"));
-	str = szFilter + strlen(szFilter) + 1; 
+	str = szFilter + strlen(szFilter) + 1;
 	strcpy(str, "*.mcr;*.mcd;*.mem;*.gme;*.mc;*.ddf");
 
 	str+= strlen(str) + 1;
@@ -1725,7 +1735,7 @@ int Open_Iso_Proc(char *file) {
     ofn.hwndOwner			= gApp.hWnd;
 
 	strcpy(szFilter, _("Psx Isos (*.iso;*.mdf;*.img;*.bin;*.cue;*.pbp;*.cbn)"));
-	str = szFilter + strlen(szFilter) + 1; 
+	str = szFilter + strlen(szFilter) + 1;
 	strcpy(str, "*.iso;*.mdf;*.img;*.bin;*.cue;*.pbp;*.cbn");
 
 	str += strlen(str) + 1;
@@ -1942,15 +1952,15 @@ void InitLanguages() {
 }
 
 char *GetLanguageNext() {
-	if (lFind == INVALID_HANDLE_VALUE) 
+	if (lFind == INVALID_HANDLE_VALUE)
 		return NULL;
 
 	for (;;) {
 		if (lFirst == 0) {
 			if (FindNextFile(lFind, &lFindData) == FALSE)
 				return NULL;
-		} 
-		else 
+		}
+		else
 			lFirst = 0;
 
 		if (!strcmp(lFindData.cFileName, ".") ||
@@ -1992,6 +2002,7 @@ int SysInit() {
 	LoadMcds(Config.Mcd1, Config.Mcd2);
 
 	if (Config.Debug) StartDebugger();
+	else if (Config.GdbServer) dbg_start();
 
 	return 0;
 }
@@ -2005,6 +2016,7 @@ void SysClose() {
 	ReleasePlugins();
 
 	StopDebugger();
+	if (Config.GdbServer) dbg_stop();
 
 	if (Config.PsxOut) CloseConsole();
 
