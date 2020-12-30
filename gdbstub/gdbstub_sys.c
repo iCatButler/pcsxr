@@ -259,7 +259,7 @@ static int wait_ack(struct msg *msg)
     } while (ret < 0 && errno == EAGAIN);
 
     if (msg->type != MSG_TYPE_ACK) {
-        fprintf(stderr, "unexpected msg.type %d\n", msg->type);
+        fprintf(stderr, "wait_ack: unexpected msg.type %d\n", msg->type);
         return 1;
     }
 
