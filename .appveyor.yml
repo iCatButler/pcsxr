@@ -3,18 +3,22 @@ version: 1.9.95.{branch}.{build}
 pull_requests:
   do_not_increment_build_number: true
 
-configuration:
-  - Debug
-  - Release
-  
-build:
-  project: win32/pcsxr.sln
-  verbosity: minimal
-  
+before_build:
+  - copy /y "%DXSDK_DIR%Lib\x86\*.lib" win32\plugins\PadSSSPSX
+
+build_script:
+  - msbuild win32\pcsxr.sln /p:Configuration=Release;Platform=Win32;PlatformToolset=v140_xp /t:Rebuild
+
 after_build:
-  - cd win32\build\%CONFIGURATION%
-  - 7z a pcsxr-pgxp.zip pcsxr-pgxp.exe
-  - 7z a pcsxr-pgxp.zip plugins\*.dll
+  - ps: $env:rev = git rev-parse --short HEAD
+  - md pcsxr
+  - cd pcsxr
+  - md bios docs memcards patches plugins snap sstates
+  - copy ..\win32\build\Release\*.exe .
+  - copy ..\win32\build\Release\plugins\*.dll plugins
+  - cd ..
+  - 7z a -tzip pcsxr-1.9.95-g%rev%-win32.zip pcsxr
 
 artifacts:
-  - path: win32\build\%CONFIGURATION%\pcsxr-pgxp.zip
+  - path: pcsxr-1.9.95-g%rev%-win32.zip
+    name: PCSXR-PGXP
